@@ -15,7 +15,7 @@ import com.transferslog.app.ui.viewmodel.StatisticsViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StatisticsScreen(vm: StatisticsViewModel, onBack: () -> Unit) {
-    val stats by vm.stats.collectAsState()
+    val stats by vm.stats.collectAsState(initial = StatisticsData())
     val accounts by vm.accounts.collectAsState()
     val selectedId by vm.selectedAccountId.collectAsState()
     var expanded by remember { mutableStateOf(false) }

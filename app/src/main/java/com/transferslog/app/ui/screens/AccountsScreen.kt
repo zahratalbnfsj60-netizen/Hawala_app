@@ -17,7 +17,7 @@ import com.transferslog.app.ui.viewmodel.AccountsViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AccountsScreen(vm: AccountsViewModel, onBack: () -> Unit) {
-    val accounts by vm.accountsWithBalance.collectAsState()
+    val accounts by vm.accountsWithBalance.collectAsState(initial = emptyList())
     var showDialog by remember { mutableStateOf(false) }
     var editAcc by remember { mutableStateOf<AccountWithBalance?>(null) }
     var name by remember { mutableStateOf("") }

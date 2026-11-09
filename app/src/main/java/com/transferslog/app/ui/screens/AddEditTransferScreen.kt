@@ -20,8 +20,8 @@ import java.util.*
 @Composable
 fun AddEditTransferScreen(vm: AddEditViewModel, id: Long?, onBack: () -> Unit) {
     val state by vm.formState.collectAsState()
-    val accounts by vm.accounts.collectAsState()
-    val savedNames by vm.savedNames.collectAsState()
+    val accounts by vm.accounts.collectAsState(initial = emptyList())
+    val savedNames by vm.savedNames.collectAsState(initial = emptyList())
     val snackbar = remember { SnackbarHostState() }
     var showDatePicker by remember { mutableStateOf(false) }
     var showExitConfirm by remember { mutableStateOf(false) }

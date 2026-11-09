@@ -25,7 +25,7 @@ fun HomeScreen(vm: MainViewModel, onAdd: (TransferType) -> Unit, onEdit: (Long) 
     val query by vm.searchQuery.collectAsState()
     val type by vm.selectedType.collectAsState()
     val accId by vm.selectedAccountId.collectAsState()
-    val dateRange by vm.dateRange.collectAsState()
+    val dateRange by vm.dateRange.collectAsState(initial = null)
     val acc = accounts.find { it.id == accId }
 
     var showDatePicker by remember { mutableStateOf(false) }
@@ -37,8 +37,8 @@ fun HomeScreen(vm: MainViewModel, onAdd: (TransferType) -> Unit, onEdit: (Long) 
                 title = { Text("سجل الحوالات", color = White) },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Black),
                 actions = {
-                    IconButton(onClick = onNavAcc) { Icon(Icons.Default.AccountBalance, null, tint = White) }
-                    IconButton(onClick = onNavStats) { Icon(Icons.Default.BarChart, null, tint = White) }
+                    IconButton(onClick = onNavAcc) { Icon(Icons.Default.Person, null, tint = White) }
+                    IconButton(onClick = onNavStats) { Icon(Icons.Default.List, null, tint = White) }
                     IconButton(onClick = onNavSettings) { Icon(Icons.Default.Settings, null, tint = White) }
                 }
             )
