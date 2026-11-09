@@ -10,6 +10,7 @@ import 'settings_screen.dart';
 import 'stats_screen.dart';
 import 'debts_screen.dart';
 import 'lock_screen.dart';
+import 'daily_closing_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -19,6 +20,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   String _dateFilter = 'all';
+  String _sortBy = 'date_desc';
   String _search = '';
   DateTime? _pausedTime;
 
@@ -47,7 +49,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     
-    final filtered = p.transfers.where((t) {
+    var filtered = p.transfers.where((t) {
       if (_search.isNotEmpty && !t.recipientName.contains(_search)) return false;
       if (_dateFilter == 'today' && t.date.isBefore(today)) return false;
       if (_dateFilter == 'week' && t.date.isBefore(today.subtract(const Duration(days: 7)))) return false;
@@ -56,11 +58,27 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       return true;
     }).toList();
 
+    if (_sortBy == 'date_desc') filtered.sort((a, b) => b.date.compareTo(a.date));
+    if (_sortBy == 'date_asc') filtered.sort((a, b) => a.date.compareTo(b.date));
+    if (_sortBy == 'amount_desc') filtered.sort((a, b) => b.amount.compareTo(a.amount));
+    if (_sortBy == 'amount_asc') filtered.sort((a, b) => a.amount.compareTo(b.amount));
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('سجل الحوالات'), centerTitle: true,
         actions: [
           IconButton(icon: const Icon(Icons.search), onPressed: _openSearch),
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.sort),
+            onSelected: (val) => setState(() => _sortBy = val),
+            itemBuilder: (c) => [
+              const PopupMenuItem(value: 'date_desc', child: Text('الأحدث أولاً')),
+              const PopupMenuItem(value: 'date_asc', child: Text('الأقدم أولاً')),
+              const PopupMenuItem(value: 'amount_desc', child: Text('الأعلى مبلغاً')),
+              const PopupMenuItem(value: 'amount_asc', child: Text('الأقل مبلغاً')),
+            ],
+          ),
+          IconButton(icon: const Icon(Icons.today), tooltip: 'الإغلاق اليومي', onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DailyClosingScreen()))),
           Stack(
             alignment: Alignment.center,
             children: [
@@ -68,7 +86,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               if (p.unsettledDebtsCount > 0) Positioned(top: 8, right: 8, child: Container(padding: const EdgeInsets.all(4), decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle), child: Text('${p.unsettledDebtsCount}', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold)))),
             ],
           ),
-          IconButton(icon: const Icon(Icons.pie_chart), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StatsScreen()))),
           IconButton(icon: const Icon(Icons.people), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AccountsScreen())).then((_) => p.loadAccounts())),
           IconButton(icon: const Icon(Icons.settings), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()))),
         ],

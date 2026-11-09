@@ -24,19 +24,23 @@ class DebtsScreen extends StatelessWidget {
               Text('${fmtNum(d.amount)} ل.س', style: TextStyle(color: color, fontWeight: FontWeight.bold)),
               const SizedBox(width: 8),
               Checkbox(value: d.isSettled, onChanged: (v) { d.isSettled = v ?? false; p.updateDebt(d); }),
+              IconButton(icon: const Icon(Icons.edit, color: Colors.blueAccent, size: 20), onPressed: () => _addDebt(context, d)),
               IconButton(icon: const Icon(Icons.delete, color: Colors.red, size: 20), onPressed: () => p.deleteDebt(d.id!)),
             ]),
           ),
         );
       }),
-      floatingActionButton: FloatingActionButton(onPressed: () => _addDebt(context), backgroundColor: p.accentColor, child: const Icon(Icons.add)),
+      floatingActionButton: FloatingActionButton(onPressed: () => _addDebt(context, null), backgroundColor: p.accentColor, child: const Icon(Icons.add)),
     );
   }
 
-  void _addDebt(BuildContext context) {
-    final nameCtrl = TextEditingController(); final amountCtrl = TextEditingController(); String type = 'lend';
+  void _addDebt(BuildContext context, Debt? debt) {
+    final nameCtrl = TextEditingController(text: debt?.personName ?? ''); 
+    final amountCtrl = TextEditingController(text: debt?.amount.toString() ?? ''); 
+    String type = debt?.type ?? 'lend';
+    
     showDialog(context: context, builder: (c) => StatefulBuilder(builder: (c, setSt) => AlertDialog(
-      title: const Text('إضافة دين / سلفة'),
+      title: Text(debt == null ? 'إضافة دين / سلفة' : 'تعديل الدين'),
       content: Column(mainAxisSize: MainAxisSize.min, children: [
         SegmentedButton<String>(
           segments: const [ButtonSegment(value: 'lend', label: Text('أعطيت')), ButtonSegment(value: 'borrow', label: Text('أخذت'))],
@@ -49,7 +53,12 @@ class DebtsScreen extends StatelessWidget {
         TextButton(onPressed: () => Navigator.pop(c), child: const Text('إلغاء')),
         FilledButton(onPressed: () {
           if (nameCtrl.text.isNotEmpty && amountCtrl.text.isNotEmpty) {
-            context.read<AppProvider>().addDebt(Debt(personName: nameCtrl.text, amount: double.parse(amountCtrl.text), type: type, date: DateTime.now()));
+            final provider = context.read<AppProvider>();
+            if (debt == null) {
+              provider.addDebt(Debt(personName: nameCtrl.text, amount: double.parse(amountCtrl.text), type: type, date: DateTime.now()));
+            } else {
+              provider.updateDebt(Debt(id: debt.id, personName: nameCtrl.text, amount: double.parse(amountCtrl.text), type: type, date: debt.date, isSettled: debt.isSettled));
+            }
             Navigator.pop(c);
           }
         }, child: const Text('حفظ')),
