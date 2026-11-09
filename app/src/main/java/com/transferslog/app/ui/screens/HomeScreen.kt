@@ -11,7 +11,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.transferslog.app.data.*
 import com.transferslog.app.viewmodel.MainViewModel
@@ -30,6 +32,12 @@ fun HomeScreen(vm: MainViewModel, nav: NavController) {
         (filterType == null || t.type == filterType) &&
         (search.isBlank() || t.recipientName.contains(search, true) || t.amount.toString().contains(search))
     }
+
+    // حساب المجاميع للنتائج المعروضة حالياً (تتحدث مع البحث/الفلترة)
+    val totalReceived = filtered.filter { it.type == TransferType.RECEIVED }.sumOf { it.amount }
+    val totalPaid = filtered.filter { it.type == TransferType.PAID }.sumOf { it.amount }
+    val totalCommission = filtered.filter { it.type == TransferType.PAID }.sumOf { it.commission }
+    val remaining = totalReceived - totalPaid - totalCommission
 
     Scaffold(
         topBar = {
@@ -53,19 +61,47 @@ fun HomeScreen(vm: MainViewModel, nav: NavController) {
                 )
             )
         },
-        floatingActionButton = {
-            Column(horizontalAlignment = Alignment.End) {
-                ExtendedFloatingActionButton(
-                    onClick = { nav.navigate("add/RECEIVED/0") },
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = Color.White
-                ) { Text("مستلم +") }
-                Spacer(Modifier.height(8.dp))
-                ExtendedFloatingActionButton(
-                    onClick = { nav.navigate("add/PAID/0") },
-                    containerColor = MaterialTheme.colorScheme.error,
-                    contentColor = Color.White
-                ) { Text("مدفوع +") }
+        bottomBar = {
+            Column {
+                // 🔹 أزرار الإضافة السريعة (فوق الشريط السفلي)
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.surface)
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Button(
+                        onClick = { nav.navigate("add/RECEIVED/0") },
+                        modifier = Modifier.weight(1f).height(48.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary
+                        )
+                    ) {
+                        Icon(Icons.Default.Add, null)
+                        Spacer(Modifier.width(4.dp))
+                        Text("مستلم +", fontWeight = FontWeight.Bold)
+                    }
+                    Button(
+                        onClick = { nav.navigate("add/PAID/0") },
+                        modifier = Modifier.weight(1f).height(48.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.error
+                        )
+                    ) {
+                        Icon(Icons.Default.Add, null)
+                        Spacer(Modifier.width(4.dp))
+                        Text("مدفوع +", fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                // 🔹 شريط الإحصائيات السفلي
+                BottomStatsBar(
+                    received = totalReceived,
+                    paid = totalPaid,
+                    remaining = remaining,
+                    profit = totalCommission
+                )
             }
         }
     ) { padding ->
@@ -102,6 +138,60 @@ fun HomeScreen(vm: MainViewModel, nav: NavController) {
     }
 }
 
+// شريط الإحصائيات السفلي
+@Composable
+fun BottomStatsBar(received: Double, paid: Double, remaining: Double, profit: Double) {
+    Surface(
+        color = Color(0xFF1B5E20),
+        tonalElevation = 8.dp,
+        shadowElevation = 8.dp
+    ) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .padding(vertical = 10.dp, horizontal = 4.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            StatItem("مستلم", received, Color(0xFF69F0AE))
+            VerticalDivider(color = Color.White.copy(alpha = 0.2f), modifier = Modifier.height(28.dp))
+            StatItem("مدفوع", paid, Color(0xFFFF8A80))
+            VerticalDivider(color = Color.White.copy(alpha = 0.2f), modifier = Modifier.height(28.dp))
+            StatItem("الباقي", remaining, Color.White)
+            VerticalDivider(color = Color.White.copy(alpha = 0.2f), modifier = Modifier.height(28.dp))
+            StatItem("أرباح", profit, Color(0xFFFFE082))
+        }
+    }
+}
+
+@Composable
+fun StatItem(label: String, value: Double, valueColor: Color) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(
+            label,
+            fontSize = 11.sp,
+            color = Color.White.copy(alpha = 0.75f),
+            fontWeight = FontWeight.Medium
+        )
+        Text(
+            text = formatNumber(value),
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold,
+            color = valueColor,
+            textAlign = TextAlign.Center
+        )
+    }
+}
+
+private fun formatNumber(value: Double): String {
+    return if (value == value.toLong().toDouble()) {
+        value.toLong().toString()
+    } else {
+        String.format(Locale.getDefault(), "%.2f", value)
+    }
+}
+
+// بطاقة الحوالة (كما هي)
 @Composable
 fun TransferCard(t: Transfer, accountName: String, onClick: () -> Unit) {
     val isPaid = t.type == TransferType.PAID
