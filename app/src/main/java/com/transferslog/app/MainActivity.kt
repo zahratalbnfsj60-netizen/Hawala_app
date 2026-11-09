@@ -17,7 +17,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val app = application as TransfersApplication
-        val factory = MainViewModelFactory(app.repository)
+        val factory = MainViewModelFactory(app.repository, app.settings)
         setContent {
             TransfersTheme {
                 AppNav(factory)

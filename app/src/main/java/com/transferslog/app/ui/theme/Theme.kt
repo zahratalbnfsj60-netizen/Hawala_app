@@ -1,27 +1,27 @@
 package com.transferslog.app.ui.theme
 
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 
-private val LightColors = lightColorScheme(
-    primary = GreenPrimary,
-    secondary = GreenLight,
+private val BlackColors = darkColorScheme(
+    primary = GreenReceived,
+    onPrimary = WhiteText,
+    secondary = GreenBright,
+    onSecondary = WhiteText,
+    tertiary = GoldProfit,
+    onTertiary = BlackBg,
     error = RedPaid,
-    background = SurfaceLight
-)
-
-private val DarkColors = darkColorScheme(
-    primary = GreenLight,
-    secondary = GreenPrimary,
-    error = RedLight,
-    background = DarkBg
+    onError = WhiteText,
+    background = BlackBg,
+    onBackground = WhiteText,
+    surface = DarkSurface,
+    onSurface = WhiteText,
+    surfaceVariant = DarkCard,
+    onSurfaceVariant = GrayText,
+    outline = DividerGray
 )
 
 @Composable
-fun TransfersTheme(darkTheme: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
-    MaterialTheme(
-        colorScheme = if (darkTheme) DarkColors else LightColors,
-        content = content
-    )
+fun TransfersTheme(content: @Composable () -> Unit) {
+    MaterialTheme(colorScheme = BlackColors, content = content)
 }
