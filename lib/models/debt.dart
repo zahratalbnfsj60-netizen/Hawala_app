@@ -4,7 +4,7 @@ class Debt {
   final double amount;
   final String type; // 'lend' (سلفة أعطيتها) أو 'borrow' (سلفة أخذتها)
   final DateTime date;
-  final bool isSettled;
+  bool isSettled;
 
   Debt({this.id, required this.personName, required this.amount, required this.type, required this.date, this.isSettled = false});
 
