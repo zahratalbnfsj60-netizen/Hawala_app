@@ -14,7 +14,7 @@ class StatsScreen extends StatelessWidget {
     final recPercent = total == 0 ? 0.0 : (p.totalReceived / total) * 100;
     return Scaffold(
       appBar: AppBar(title: const Text('الإحصائيات'), centerTitle: true),
-      body: p.count == 0
+      body: p.transfers.length == 0
           ? const Center(child: Text('لا توجد بيانات كافية', style: TextStyle(color: Colors.grey)))
           : ListView(padding: const EdgeInsets.all(16), children: [
               Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: const Color(0xFF161616), borderRadius: BorderRadius.circular(16)), child: Column(children: [
@@ -33,7 +33,7 @@ class StatsScreen extends StatelessWidget {
               ])),
               const SizedBox(height: 16),
               Row(children: [
-                Expanded(child: _card('إجمالي الحوالات', p.count.toString(), Icons.swap_horiz, Colors.blue)),
+                Expanded(child: _card('إجمالي الحوالات', p.transfers.length.toString(), Icons.swap_horiz, Colors.blue)),
                 const SizedBox(width: 12),
                 Expanded(child: _card('إجمالي العمولات', fmtNum(p.totalCommission), Icons.monetization_on, Colors.orange)),
               ]),
