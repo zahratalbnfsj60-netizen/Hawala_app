@@ -2,7 +2,6 @@ import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../models/account.dart';
 import '../models/transfer.dart';
-import '../models/saved_name.dart';
 
 class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._();

@@ -35,9 +35,8 @@ class AppProvider extends ChangeNotifier {
   void removePin() { prefs.remove('pin'); notifyListeners(); }
   void setBio(bool v) { prefs.setBool('bio', v); notifyListeners(); }
   bool verifyPin(String pin) => prefs.getString('pin') == pin;
-  Future<bool> tryBiometric() async { try { return await _auth.authenticate(localizedReason: 'أدخل بصمتك للدخول', options: const AuthenticationOptions(biometricOnly: true, stickyAuth: true)); } catch (_) { return false; } }
+  Future<bool> tryBiometric() async { try { return await _auth.authenticate(localizedReason: 'أدخل بصمتك', options: const AuthenticationOptions(biometricOnly: true, stickyAuth: true)); } catch (_) { return false; } }
   void setUnlocked(bool v) { unlocked = v; notifyListeners(); }
-
   void setCurrency(String c) { currency = c; prefs.setString('currency', c); notifyListeners(); }
   void setComms(double c100, double c250) { comm100 = c100; comm250 = c250; prefs.setDouble('comm100', c100); prefs.setDouble('comm250', c250); notifyListeners(); }
 
