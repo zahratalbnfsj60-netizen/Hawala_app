@@ -39,6 +39,9 @@ interface TransferDao {
     suspend fun update(transfer: Transfer)
     @Delete
     suspend fun delete(transfer: Transfer)
+    @Query("SELECT * FROM transfers")
+    fun getAll(): Flow<List<Transfer>>
+
     @Query("SELECT MAX(paidNumber) FROM transfers WHERE type = 'PAID' AND accountId = :accountId")
     suspend fun getMaxPaidNumber(accountId: Long): Long?
     @Query("DELETE FROM transfers WHERE accountId = :accountId")

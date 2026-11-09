@@ -15,7 +15,7 @@ class StatisticsViewModel(private val repo: Repository) : ViewModel() {
     val accounts = repo.getAccounts().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     @OptIn(ExperimentalCoroutinesApi::class)
-    val stats = _selectedAccountId.flatMapLatest { id -> repo.getFilteredTransfers(accountId = id) }
+    val stats = _selectedAccountId.flatMapLatest { id -> if (id != null) repo.getFilteredTransfers(accountId = id) else flowOf(emptyList()) }
         .map { list ->
             val opening = if (_selectedAccountId.value == null) {
                 accounts.value.sumOf { it.openingBalance }

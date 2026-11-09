@@ -3,6 +3,7 @@ package com.transferslog.app.ui.navigation
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
@@ -26,7 +27,7 @@ fun AppNavigation(repo: Repository) {
             val mainVm: MainViewModel = viewModel { MainViewModel(repo) }
             val accountId = mainVm.selectedAccountId.collectAsState().value
             if (accountId != null) {
-                val vm: AddEditViewModel = viewModel { AddEditViewModel(repo, accountId) }
+                val vm: AddEditViewModel = viewModel { AddEditViewModel(repo, accountId!!) }
                 AddEditTransferScreen(vm, id) { nav.popBackStack() }
             }
         }

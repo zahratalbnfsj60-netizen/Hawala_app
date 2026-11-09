@@ -25,7 +25,7 @@ class AccountsViewModel(private val repo: Repository) : ViewModel() {
         viewModelScope.launch {
             combine(
                 repo.getAccounts(),
-                repo.getFilteredTransfers()
+                repo.transferDao.getAll()
             ) { accounts, transfers ->
                 accounts.map { acc ->
                     val received = transfers.filter { it.accountId == acc.id && it.type == TransferType.RECEIVED }.sumOf { it.amount }
