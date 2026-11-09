@@ -1,6 +1,6 @@
 package com.transferslog.app.ui.screens
 
-import androidx.activity.ComponentActivity
+import androidx.fragment.app.FragmentActivity
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.compose.foundation.background
@@ -26,7 +26,7 @@ import com.transferslog.app.ui.theme.White
 @Composable
 fun LockScreen(onUnlock: () -> Unit) {
     val context = LocalContext.current
-    val activity = context as ComponentActivity
+    val activity = context as FragmentActivity
 
     val executor = ContextCompat.getMainExecutor(context)
     val biometricPrompt = BiometricPrompt(activity, executor, object : BiometricPrompt.AuthenticationCallback() {
