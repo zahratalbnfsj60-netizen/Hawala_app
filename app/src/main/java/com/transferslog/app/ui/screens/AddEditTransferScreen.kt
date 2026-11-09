@@ -8,6 +8,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.transferslog.app.data.TransferType
@@ -29,10 +30,14 @@ fun AddEditTransferScreen(vm: AddEditViewModel, id: Long?, onBack: () -> Unit) {
     var expandedAcc by remember { mutableStateOf(false) }
 
     LaunchedEffect(id) { id?.let { vm.loadTransfer(it) } }
-    LaunchedEffect(state.savedMessage) {
+    LaunchedEffect(state.savedMessage, state.errorMessage) {
         state.savedMessage?.let {
-            snackbar.showSnackbar(it); vm.clearMessage()
+            snackbar.showSnackbar(it)
+            vm.clearMessage()
             if (state.id != null) onBack()
+        } ?: state.errorMessage?.let {
+            snackbar.showSnackbar(it)
+            vm.clearMessage()
         }
     }
 
@@ -52,8 +57,19 @@ fun AddEditTransferScreen(vm: AddEditViewModel, id: Long?, onBack: () -> Unit) {
         },
         bottomBar = {
             Row(modifier = Modifier.fillMaxWidth().background(DarkGray).padding(8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { vm.save() }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = GreenAccent)) { Text("حفظ", color = Black) }
-                OutlinedButton(onClick = { vm.clearForm() }, modifier = Modifier.weight(1f)) { Text("إلغاء") }
+                Button(
+                    onClick = { vm.save() }, 
+                    modifier = Modifier.weight(1f), 
+                    enabled = !state.isLoading,
+                    colors = ButtonDefaults.buttonColors(containerColor = GreenAccent)
+                ) { 
+                    if (state.isLoading) {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Black, strokeWidth = 2.dp)
+                    } else {
+                        Text("حفظ", color = Black) 
+                    }
+                }
+                OutlinedButton(onClick = { vm.clearForm() }, modifier = Modifier.weight(1f), enabled = !state.isLoading) { Text("إلغاء") }
             }
         }
     ) { padding ->
@@ -63,14 +79,15 @@ fun AddEditTransferScreen(vm: AddEditViewModel, id: Long?, onBack: () -> Unit) {
                 FilterChip(selected = state.type == TransferType.PAID, onClick = { vm.updateType(TransferType.PAID) }, label = { Text("مدفوع") }, colors = FilterChipDefaults.filterChipColors(selectedContainerColor = RedAccent, selectedLabelColor = White))
             }
 
-            // حقل الاسم مع الاقتراحات
             Box {
                 OutlinedTextField(
                     value = state.recipientName, 
                     onValueChange = { vm.updateRecipient(it); expandedNames = it.isNotEmpty() }, 
-                    label = { Text("اسم المستلم") }, modifier = Modifier.fillMaxWidth(), 
+                    label = { Text("اسم المستلم *") }, modifier = Modifier.fillMaxWidth(), 
                     colors = OutlinedTextFieldDefaults.colors(focusedTextColor = White, unfocusedTextColor = White),
-                    trailingIcon = { IconButton(onClick = { expandedNames = !expandedNames }) { Icon(Icons.Default.ArrowDropDown, null) } }
+                    trailingIcon = { IconButton(onClick = { expandedNames = !expandedNames }) { Icon(Icons.Default.ArrowDropDown, null) } },
+                    isError = state.nameError,
+                    supportingText = if (state.nameError) { { Text("الاسم مطلوب", color = RedAccent) } } else null
                 )
                 DropdownMenu(expanded = expandedNames, onDismissRequest = { expandedNames = false }) {
                     savedNames.filter { it.name.contains(state.recipientName, ignoreCase = true) }.forEach { s ->
@@ -79,18 +96,34 @@ fun AddEditTransferScreen(vm: AddEditViewModel, id: Long?, onBack: () -> Unit) {
                 }
             }
 
-            OutlinedTextField(value = state.amount, onValueChange = vm::updateAmount, label = { Text("المبلغ") }, modifier = Modifier.fillMaxWidth(), colors = OutlinedTextFieldDefaults.colors(focusedTextColor = White, unfocusedTextColor = White))
+            OutlinedTextField(
+                value = state.amount, 
+                onValueChange = vm::updateAmount, 
+                label = { Text("المبلغ *") }, 
+                modifier = Modifier.fillMaxWidth(), 
+                colors = OutlinedTextFieldDefaults.colors(focusedTextColor = White, unfocusedTextColor = White),
+                isError = state.amountError,
+                supportingText = if (state.amountError) { { Text("يجب أن يكون المبلغ رقماً أكبر من 0", color = RedAccent) } } else null
+            )
 
-            // قائمة الحسابات
             Box {
-                OutlinedButton(onClick = { expandedAcc = true }, modifier = Modifier.fillMaxWidth()) {
-                    Text(accounts.find { it.id == state.accountId }?.name ?: "اختر الحساب", color = White)
+                OutlinedButton(
+                    onClick = { expandedAcc = true }, 
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = if (state.accountError) RedAccent else White
+                    )
+                ) {
+                    Text(accounts.find { it.id == state.accountId }?.name ?: "اختر الحساب *", color = if (state.accountError) RedAccent else White)
                 }
                 DropdownMenu(expanded = expandedAcc, onDismissRequest = { expandedAcc = false }) {
                     accounts.forEach { a ->
                         DropdownMenuItem(text = { Text(a.name) }, onClick = { vm.updateAccount(a.id); expandedAcc = false })
                     }
                 }
+            }
+            if (state.accountError) {
+                Text("يجب اختيار حساب", color = RedAccent, style = MaterialTheme.typography.bodySmall)
             }
 
             if (state.type == TransferType.PAID) {

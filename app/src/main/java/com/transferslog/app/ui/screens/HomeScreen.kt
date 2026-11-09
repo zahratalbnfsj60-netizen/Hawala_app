@@ -72,10 +72,9 @@ fun HomeScreen(vm: MainViewModel, onAdd: (TransferType) -> Unit, onEdit: (Long) 
                 FilterChip(selected = type == TransferType.RECEIVED, onClick = { vm.setTypeFilter(TransferType.RECEIVED) }, label = { Text("مستلم") }, colors = FilterChipDefaults.filterChipColors(selectedContainerColor = GreenAccent, selectedLabelColor = Black))
                 FilterChip(selected = type == TransferType.PAID, onClick = { vm.setTypeFilter(TransferType.PAID) }, label = { Text("مدفوع") }, colors = FilterChipDefaults.filterChipColors(selectedContainerColor = RedAccent, selectedLabelColor = White))
                 
-                // قائمة منسدلة للحساب
                 Box(modifier = Modifier.weight(1f)) {
                     OutlinedButton(onClick = { expandedAcc = true }, modifier = Modifier.fillMaxWidth()) {
-                        Text(acc?.name ?: "كل الحسابات", maxLines = 1)
+                        Text(acc?.name ?: "كل الحسابات", maxLines = 1, color = White)
                     }
                     DropdownMenu(expanded = expandedAcc, onDismissRequest = { expandedAcc = false }) {
                         DropdownMenuItem(text = { Text("كل الحسابات") }, onClick = { vm.setAccountFilter(null); expandedAcc = false })
@@ -84,22 +83,29 @@ fun HomeScreen(vm: MainViewModel, onAdd: (TransferType) -> Unit, onEdit: (Long) 
                         }
                     }
                 }
-                // زر التاريخ
                 IconButton(onClick = { showDatePicker = true }) {
                     Icon(Icons.Default.DateRange, null, tint = if (dateRange != null) GreenAccent else White)
                 }
             }
 
             if (dateRange != null) {
-                Text(
-                    "مفلتر بالتاريخ",
-                    color = GreenAccent, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-                )
+                Text("مفلتر بالتاريخ", color = GreenAccent, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
             }
 
-            LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(transfers, key = { it.id }) { t ->
-                    TransferCard(transfer = t, onClick = { onEdit(t.id) }, onDelete = { vm.deleteTransfer(t) })
+            if (transfers.isEmpty()) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Default.List, null, tint = SecondaryText, modifier = Modifier.size(64.dp))
+                        Spacer(Modifier.height(16.dp))
+                        Text("لا توجد حوالات مطابقة", color = SecondaryText, style = MaterialTheme.typography.titleMedium)
+                        Text("أضف حوالة جديدة أو غير الفلاتر", color = SecondaryText, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            } else {
+                LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(transfers, key = { it.id }) { t ->
+                        TransferCard(transfer = t, onClick = { onEdit(t.id) }, onDelete = { vm.deleteTransfer(t) })
+                    }
                 }
             }
         }

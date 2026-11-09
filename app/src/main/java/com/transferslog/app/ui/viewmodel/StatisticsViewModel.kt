@@ -17,11 +17,17 @@ class StatisticsViewModel(private val repo: Repository) : ViewModel() {
     @OptIn(ExperimentalCoroutinesApi::class)
     val stats = _selectedAccountId.flatMapLatest { id -> repo.getFilteredTransfers(accountId = id) }
         .map { list ->
-            val opening = accounts.value.find { it.id == _selectedAccountId.value }?.openingBalance ?: 0.0
+            val opening = if (_selectedAccountId.value == null) {
+                accounts.value.sumOf { it.openingBalance }
+            } else {
+                accounts.value.find { it.id == _selectedAccountId.value }?.openingBalance ?: 0.0
+            }
             val r = list.filter { it.type == TransferType.RECEIVED }.sumOf { it.amount }
             val p = list.filter { it.type == TransferType.PAID }.sumOf { it.amount }
             val c = list.filter { it.type == TransferType.PAID }.sumOf { it.commission }
             StatisticsData(opening, r, p, c, opening + r - p - c)
+        }.catch { e ->
+            emit(StatisticsData())
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), StatisticsData())
 
     fun selectAccount(id: Long?) { _selectedAccountId.value = id }
