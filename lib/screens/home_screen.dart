@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../models/transfer.dart';
+import '../models/debt.dart';
+import '../models/timeline_item.dart';
 import '../providers/app_provider.dart';
 import '../utils/formatters.dart';
 import 'add_transfer_screen.dart';
 import 'accounts_screen.dart';
 import 'settings_screen.dart';
-import 'stats_screen.dart';
 import 'debts_screen.dart';
 import 'lock_screen.dart';
 import 'daily_closing_screen.dart';
@@ -50,19 +52,35 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     
-    var filtered = p.transfers.where((t) {
-      if (_search.isNotEmpty && !t.recipientName.contains(_search)) return false;
-      if (_dateFilter == 'today' && t.date.isBefore(today)) return false;
-      if (_dateFilter == 'week' && t.date.isBefore(today.subtract(const Duration(days: 7)))) return false;
-      if (_dateFilter == 'month' && (t.date.year != now.year || t.date.month != now.month)) return false;
-      if (_dateFilter == 'year' && t.date.year != now.year) return false;
+    // دمج الحوالات والديون في قائمة واحدة
+    List<TimelineItem> allItems = [];
+    allItems.addAll(p.transfers.map((t) => TimelineItem.transfer(t)));
+    allItems.addAll(p.debts.map((d) => TimelineItem.debt(d)));
+
+    // الفلترة
+    allItems = allItems.where((item) {
+      if (_search.isNotEmpty) {
+        final name = item.transfer?.recipientName ?? item.debt?.personName ?? '';
+        if (!name.contains(_search)) return false;
+      }
+      if (_dateFilter == 'today' && item.date.isBefore(today)) return false;
+      if (_dateFilter == 'week' && item.date.isBefore(today.subtract(const Duration(days: 7)))) return false;
+      if (_dateFilter == 'month' && (item.date.year != now.year || item.date.month != now.month)) return false;
+      if (_dateFilter == 'year' && item.date.year != now.year) return false;
       return true;
     }).toList();
 
-    if (_sortBy == 'date_desc') filtered.sort((a, b) => b.date.compareTo(a.date));
-    if (_sortBy == 'date_asc') filtered.sort((a, b) => a.date.compareTo(b.date));
-    if (_sortBy == 'amount_desc') filtered.sort((a, b) => b.amount.compareTo(a.amount));
-    if (_sortBy == 'amount_asc') filtered.sort((a, b) => a.amount.compareTo(b.amount));
+    // الترتيب
+    if (_sortBy == 'date_desc') allItems.sort((a, b) => b.date.compareTo(a.date));
+    if (_sortBy == 'date_asc') allItems.sort((a, b) => a.date.compareTo(b.date));
+
+    // التجميع حسب اليوم
+    Map<String, List<TimelineItem>> groupedItems = {};
+    for (var item in allItems) {
+      String dateStr = DateFormat('EEEE, d MMMM yyyy', 'ar').format(item.date);
+      if (!groupedItems.containsKey(dateStr)) groupedItems[dateStr] = [];
+      groupedItems[dateStr]!.add(item);
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -75,8 +93,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             itemBuilder: (c) => [
               const PopupMenuItem(value: 'date_desc', child: Text('الأحدث أولاً')),
               const PopupMenuItem(value: 'date_asc', child: Text('الأقدم أولاً')),
-              const PopupMenuItem(value: 'amount_desc', child: Text('الأعلى مبلغاً')),
-              const PopupMenuItem(value: 'amount_asc', child: Text('الأقل مبلغاً')),
             ],
           ),
           IconButton(icon: const Icon(Icons.today), tooltip: 'الإغلاق اليومي', onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DailyClosingScreen()))),
@@ -92,8 +108,25 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         ],
       ),
       body: Column(children: [
-        _accountHeader(p), _dateFilters(), _tableHeader(),
-        Expanded(child: filtered.isEmpty ? const Center(child: Text('لا توجد حوالات في هذه الفترة', style: TextStyle(color: Colors.grey))) : ListView.builder(padding: const EdgeInsets.only(bottom: 16), itemCount: filtered.length, itemBuilder: (c, i) => _row(filtered[i], p))),
+        _accountHeader(p), _dateFilters(),
+        Expanded(child: groupedItems.isEmpty ? const Center(child: Text('لا توجد حركات في هذه الفترة', style: TextStyle(color: Colors.grey))) : ListView.builder(
+          padding: const EdgeInsets.only(bottom: 16),
+          itemCount: groupedItems.keys.length,
+          itemBuilder: (c, i) {
+            String dateKey = groupedItems.keys.elementAt(i);
+            List<TimelineItem> items = groupedItems[dateKey]!;
+            return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              // عنوان اليوم (مثلاً: الأحد، 15 أكتوبر)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                color: const Color(0xFF161616),
+                child: Text(dateKey, style: TextStyle(fontWeight: FontWeight.bold, color: p.accentColor, fontSize: 13)),
+              ),
+              // حركات اليوم
+              ...items.map((item) => item.transfer != null ? _transferRow(item.transfer!, p) : _debtRow(item.debt!, p)),
+            ]);
+          },
+        )),
       ]),
       bottomNavigationBar: _bottomStatsAndActions(p),
     );
@@ -132,38 +165,50 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     return ChoiceChip(label: Text(label), selected: sel, onSelected: (_) => setState(() => _dateFilter = v), backgroundColor: const Color(0xFF1E1E1E), selectedColor: p.accentColor, labelStyle: TextStyle(color: sel ? Colors.white : Colors.grey, fontSize: 13)); 
   }
 
-  Widget _tableHeader() => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), color: const Color(0xFF161616),
-    child: const Row(children: [
-      Expanded(flex: 3, child: Text('الاسم والتاريخ', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Colors.grey))),
-      Expanded(flex: 2, child: Text('مستلم', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Colors.grey), textAlign: TextAlign.center)),
-      Expanded(flex: 2, child: Text('مدفوع', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Colors.grey), textAlign: TextAlign.center)),
-    ]),
-  );
-
-  Widget _row(Transfer t, AppProvider p) {
+  Widget _transferRow(Transfer t, AppProvider p) {
     final paid = t.type == TransferType.paid;
     final color = paid ? const Color(0xFFE53935) : const Color(0xFF00C853);
     final displayAmount = p.privacyMode ? '***' : '${fmtNum(t.amount)} ل.س';
 
     return Slidable(key: ValueKey(t.id), endActionPane: ActionPane(motion: const DrawerMotion(), children: [
-      SlidableAction(onPressed: (c) => _confirmDelete(c, p, t.id!), backgroundColor: const Color(0xFFE53935), foregroundColor: Colors.white, icon: Icons.delete, label: 'حذف'),
-      SlidableAction(onPressed: (c) => Navigator.push(context, MaterialPageRoute(builder: (_) => AddTransferScreen(existing: t))).then((_) => p.loadTransfers()), backgroundColor: Colors.blueAccent, foregroundColor: Colors.white, icon: Icons.edit, label: 'تعديل'),
+      SlidableAction(onPressed: (c) => _confirmDeleteTransfer(c, p, t.id!), backgroundColor: const Color(0xFFE53935), foregroundColor: Colors.white, icon: Icons.delete, label: 'حذف'),
     ]), child: InkWell(
-      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => CustomerStatementScreen(customerName: t.recipientName))),
+      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => AddTransferScreen(existing: t))).then((_) => p.loadTransfers()), // التعديل المباشر
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: Color(0xFF333333)))),
         child: Row(children: [
           Expanded(flex: 3, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(t.recipientName, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-            Text('${fmtDate(t.date)} ${t.date.hour.toString().padLeft(2, '0')}:${t.date.minute.toString().padLeft(2, '0')}', style: const TextStyle(fontSize: 10, color: Colors.grey)),
+            Text('${t.date.hour.toString().padLeft(2, '0')}:${t.date.minute.toString().padLeft(2, '0')}', style: const TextStyle(fontSize: 10, color: Colors.grey)),
           ])),
           Expanded(flex: 2, child: Text(paid ? '-' : displayAmount, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: paid ? Colors.transparent : color), textAlign: TextAlign.center)),
           Expanded(flex: 2, child: Text(paid ? displayAmount : '-', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: paid ? color : Colors.transparent), textAlign: TextAlign.center)),
+          IconButton(icon: const Icon(Icons.info_outline, size: 16, color: Colors.grey), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => CustomerStatementScreen(customerName: t.recipientName)))),
         ]),
       ),
     ));
+  }
+
+  Widget _debtRow(Debt d, AppProvider p) {
+    final isLend = d.type == 'lend';
+    final color = d.isSettled ? Colors.grey : (isLend ? const Color(0xFFFFB300) : const Color(0xFF00B0FF)); // لون كهرماني للسلف
+    final displayAmount = p.privacyMode ? '***' : '${fmtNum(d.amount)} ل.س';
+
+    return InkWell(
+      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DebtsScreen())),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: Color(0xFF333333))), color: Color(0xFF1A1A1A)), // خلفية مختلفة قليلاً للديون
+        child: Row(children: [
+          Expanded(flex: 3, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('${isLend ? "سلفة لـ" : "سلفة من"} ${d.personName}', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: color)),
+            Text('${d.date.hour.toString().padLeft(2, '0')}:${d.date.minute.toString().padLeft(2, '0')} ${d.isSettled ? "(مسددة)" : ""}', style: const TextStyle(fontSize: 10, color: Colors.grey)),
+          ])),
+          Expanded(flex: 4, child: Text(displayAmount, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color), textAlign: TextAlign.center)),
+        ]),
+      ),
+    );
   }
 
   Widget _bottomStatsAndActions(AppProvider p) => Container(
@@ -190,7 +235,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     return Expanded(child: Column(children: [Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey)), const SizedBox(height: 2), FittedBox(child: Text(display, style: TextStyle(fontWeight: FontWeight.bold, color: color, fontSize: 12)))]));
   }
 
-  void _confirmDelete(BuildContext context, AppProvider p, int id) {
+  void _confirmDeleteTransfer(BuildContext context, AppProvider p, int id) {
     showDialog(context: context, builder: (c) => AlertDialog(title: const Text('حذف الحوالة'), content: const Text('هل أنت متأكد؟'), actions: [TextButton(onPressed: () => Navigator.pop(c), child: const Text('إلغاء')), FilledButton(style: FilledButton.styleFrom(backgroundColor: Colors.red), onPressed: () async { await p.deleteTransfer(id); if (c.mounted) Navigator.pop(c); }, child: const Text('حذف'))]));
   }
   
