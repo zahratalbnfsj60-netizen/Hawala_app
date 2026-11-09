@@ -36,9 +36,15 @@ jobs:
                       </intent-filter>
                   </activity>
                   <meta-data android:name="flutterEmbedding" android:value="2"/>
+                  <!-- Needed for pdf printing/sharing -->
+                  <provider android:name="androidx.core.content.FileProvider" android:authorities="${applicationId}.fileprovider" android:exported="false" android:grantUriPermissions="true">
+                      <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/file_paths"></meta-data>
+                  </provider>
               </application>
           </manifest>
           MANIFEST
+          mkdir -p android/app/src/main/res/xml
+          echo '<?xml version="1.0" encoding="utf-8"?><paths xmlns:android="http://schemas.android.com/apk/res/android"><external-path name="external_files" path="."/></paths>' > android/app/src/main/res/xml/file_paths.xml
       - name: Fix MainActivity
         run: |
           cat << 'KT' > android/app/src/main/kotlin/com/example/transfer_log/MainActivity.kt
