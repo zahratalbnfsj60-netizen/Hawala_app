@@ -11,6 +11,7 @@ import 'stats_screen.dart';
 import 'debts_screen.dart';
 import 'lock_screen.dart';
 import 'daily_closing_screen.dart';
+import 'customer_statement_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -149,7 +150,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       SlidableAction(onPressed: (c) => _confirmDelete(c, p, t.id!), backgroundColor: const Color(0xFFE53935), foregroundColor: Colors.white, icon: Icons.delete, label: 'حذف'),
       SlidableAction(onPressed: (c) => Navigator.push(context, MaterialPageRoute(builder: (_) => AddTransferScreen(existing: t))).then((_) => p.loadTransfers()), backgroundColor: Colors.blueAccent, foregroundColor: Colors.white, icon: Icons.edit, label: 'تعديل'),
     ]), child: InkWell(
-      onTap: () => _showDetails(t, p),
+      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => CustomerStatementScreen(customerName: t.recipientName))),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: Color(0xFF333333)))),
@@ -162,20 +163,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           Expanded(flex: 2, child: Text(paid ? displayAmount : '-', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: paid ? color : Colors.transparent), textAlign: TextAlign.center)),
         ]),
       ),
-    ));
-  }
-
-  void _showDetails(Transfer t, AppProvider p) {
-    showDialog(context: context, builder: (c) => AlertDialog(
-      title: Text(t.recipientName),
-      content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('التاريخ: ${fmtDate(t.date)} ${t.date.hour}:${t.date.minute.toString().padLeft(2, '0')}'),
-        Text('المبلغ: ${fmtNum(t.amount)} ل.س'),
-        Text('العمولة: ${fmtNum(t.commission)} ل.س'),
-        Text('النوع: ${t.type == TransferType.paid ? 'مدفوع' : 'مستلم'}'),
-        if (t.paidNumber != null) Text('رقم الدفعة: #${t.paidNumber}'),
-      ]),
-      actions: [TextButton(onPressed: () => Navigator.pop(c), child: const Text('إغلاق'))],
     ));
   }
 
@@ -221,7 +208,18 @@ class _TransferSearchDelegate extends SearchDelegate {
   @override List<Widget>? buildActions(BuildContext context) => [IconButton(icon: const Icon(Icons.clear), onPressed: () { query = ''; })];
   @override Widget buildResults(BuildContext context) { onSearch(query); Navigator.pop(context); return const SizedBox(); }
   @override Widget buildSuggestions(BuildContext context) {
-    final suggestions = p.transfers.where((t) => t.recipientName.contains(query)).map((t) => ListTile(title: Text(t.recipientName), subtitle: Text(fmtDate(t.date)), onTap: () { onSearch(query); Navigator.pop(context); })).toList();
-    return ListView(children: suggestions);
+    final names = p.transfers.map((t) => t.recipientName).toSet().where((n) => n.contains(query)).toList();
+    return ListView.builder(
+      itemCount: names.length,
+      itemBuilder: (c, i) => ListTile(
+        leading: const Icon(Icons.person),
+        title: Text(names[i]),
+        trailing: const Icon(Icons.arrow_forward_ios, size: 14),
+        onTap: () {
+          Navigator.pop(context);
+          Navigator.push(context, MaterialPageRoute(builder: (_) => CustomerStatementScreen(customerName: names[i])));
+        },
+      ),
+    );
   }
 }

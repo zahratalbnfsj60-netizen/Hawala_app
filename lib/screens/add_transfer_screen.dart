@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../models/transfer.dart';
 import '../providers/app_provider.dart';
 import '../utils/formatters.dart';
+import '../utils/number_formatter.dart';
 
 class AddTransferScreen extends StatefulWidget {
   final Transfer? existing; final TransferType? initialType;
@@ -21,7 +22,7 @@ class _AddTransferScreenState extends State<AddTransferScreen> {
   void initState() {
     super.initState();
     _fetchNames();
-    if (widget.existing != null) { final t = widget.existing!; _type = t.type; _nameCtrl.text = t.recipientName; _amountCtrl.text = t.amount.toString(); _commCtrl.text = t.commission.toString(); _date = t.date; _paidNumber = t.paidNumber; }
+    if (widget.existing != null) { final t = widget.existing!; _type = t.type; _nameCtrl.text = t.recipientName; _amountCtrl.text = fmtNum(t.amount); _commCtrl.text = fmtNum(t.commission); _date = t.date; _paidNumber = t.paidNumber; }
     else { _type = widget.initialType ?? TransferType.paid; _loadNumber(); }
   }
 
@@ -30,10 +31,18 @@ class _AddTransferScreenState extends State<AddTransferScreen> {
 
   void _onAmountChanged(String val) {
     if (_type != TransferType.paid) return;
-    final amount = double.tryParse(val) ?? 0;
+    final amount = double.tryParse(val.replaceAll(',', '')) ?? 0;
     if (amount >= 2000 && amount < 100000) { _commCtrl.text = '100'; } 
     else if (amount >= 100000) { _commCtrl.text = '250'; } 
     else { _commCtrl.text = '0'; }
+  }
+
+  void _openCalculator() async {
+    final result = await showDialog<double>(context: context, builder: (c) => const CalculatorDialog());
+    if (result != null) {
+      _amountCtrl.text = fmtNum(result);
+      _onAmountChanged(_amountCtrl.text);
+    }
   }
   
   @override
@@ -70,7 +79,15 @@ class _AddTransferScreenState extends State<AddTransferScreen> {
             },
           ),
           const SizedBox(height: 12),
-          Card(child: TextField(focusNode: _amountFocus, controller: _amountCtrl, keyboardType: TextInputType.number, inputFormatters: [FilteringTextInputFormatter.digitsOnly], decoration: const InputDecoration(labelText: 'المبلغ (ل.س)', border: InputBorder.none, contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14)), onChanged: _onAmountChanged)),
+          Card(child: TextField(
+            focusNode: _amountFocus, controller: _amountCtrl, keyboardType: TextInputType.number, 
+            inputFormatters: [NumberTextInputFormatter()], 
+            decoration: InputDecoration(
+              labelText: 'المبلغ (ل.س)', border: InputBorder.none, contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+              suffixIcon: IconButton(icon: const Icon(Icons.calculate, color: Colors.blueAccent), onPressed: _openCalculator),
+            ), 
+            onChanged: _onAmountChanged,
+          )),
           if (paid) ...[
             const SizedBox(height: 12),
             Card(child: TextField(controller: _commCtrl, enabled: false, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'العمولة (تلقائي)', border: InputBorder.none, contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14)))),
@@ -101,10 +118,11 @@ class _AddTransferScreenState extends State<AddTransferScreen> {
   Widget _typeBtn(String label, TransferType t, Color color) { final sel = _type == t; return SizedBox(height: 50, child: FilledButton(style: FilledButton.styleFrom(backgroundColor: sel ? color : const Color(0xFF1E1E1E), side: const BorderSide(color: Color(0xFF333333))), onPressed: () { setState(() { _type = t; }); if (t == TransferType.paid) _loadNumber(); else _commCtrl.text = '0'; }, child: Text(label))); }
   
   Future<void> _save() async {
-    final name = _nameCtrl.text.trim(); final amount = double.tryParse(_amountCtrl.text) ?? 0;
+    final name = _nameCtrl.text.trim(); 
+    final amount = double.tryParse(_amountCtrl.text.replaceAll(',', '')) ?? 0;
     if (name.isEmpty) return _err('أدخل اسم المستلم'); if (amount <= 0) return _err('أدخل مبلغاً صحيحاً');
     HapticFeedback.lightImpact();
-    final p = context.read<AppProvider>(); final comm = _type == TransferType.paid ? (double.tryParse(_commCtrl.text) ?? 0) : 0.0;
+    final p = context.read<AppProvider>(); final comm = _type == TransferType.paid ? (double.tryParse(_commCtrl.text.replaceAll(',', '')) ?? 0) : 0.0;
     
     if (widget.existing == null) { 
       final n = _type == TransferType.paid ? await p.nextPaidNumber() : null; 
@@ -121,4 +139,43 @@ class _AddTransferScreenState extends State<AddTransferScreen> {
     }
   }
   void _err(String m) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
+}
+
+// آلة حاسبة مدمجة
+class CalculatorDialog extends StatefulWidget {
+  const CalculatorDialog({super.key});
+  @override
+  State<CalculatorDialog> createState() => _CalculatorDialogState();
+}
+
+class _CalculatorDialogState extends State<CalculatorDialog> {
+  final _ctrl1 = TextEditingController();
+  final _ctrl2 = TextEditingController();
+  bool _isAddition = true;
+
+  void _calculate() {
+    final v1 = double.tryParse(_ctrl1.text) ?? 0;
+    final v2 = double.tryParse(_ctrl2.text) ?? 0;
+    Navigator.pop(context, _isAddition ? v1 + v2 : v1 - v2);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('الآلة الحاسبة'),
+      content: Column(mainAxisSize: MainAxisSize.min, children: [
+        TextField(controller: _ctrl1, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'الرقم الأول')),
+        Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          ChoiceChip(label: const Text('+', style: TextStyle(fontSize: 20)), selected: _isAddition, onSelected: (v) => setState(() => _isAddition = true)),
+          const SizedBox(width: 10),
+          ChoiceChip(label: const Text('-', style: TextStyle(fontSize: 20)), selected: !_isAddition, onSelected: (v) => setState(() => _isAddition = false)),
+        ]),
+        TextField(controller: _ctrl2, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'الرقم الثاني')),
+      ]),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('إلغاء')),
+        FilledButton(onPressed: _calculate, child: const Text('موافق')),
+      ],
+    );
+  }
 }
