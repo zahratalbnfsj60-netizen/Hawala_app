@@ -11,6 +11,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.transferslog.app.ui.theme.*
 import com.transferslog.app.ui.viewmodel.StatisticsViewModel
+import com.transferslog.app.ui.viewmodel.StatisticsData
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
