@@ -27,12 +27,12 @@ class MyApp extends StatelessWidget {
             themeMode: ThemeMode.dark,
             darkTheme: ThemeData(
               brightness: Brightness.dark,
-              scaffoldBackgroundColor: Colors.black,
-              colorScheme: ColorScheme.dark(primary: p.accentColor, secondary: p.accentColor, surface: const Color(0xFF161616), error: const Color(0xFFE53935)),
+              scaffoldBackgroundColor: const Color(0xFF121212), // مريح للعين
+              colorScheme: ColorScheme.dark(primary: p.accentColor, secondary: p.accentColor, surface: const Color(0xFF1E1E1E), error: const Color(0xFFE53935)),
               textTheme: GoogleFonts.getTextTheme(p.fontFamily, ThemeData.dark().textTheme),
               pageTransitionsTheme: const PageTransitionsTheme(builders: {TargetPlatform.android: _NoTransitions()}),
               useMaterial3: true,
-              cardTheme: const CardTheme(color: Color(0xFF161616), shape: RoundedRectangleBorder(side: BorderSide(color: Color(0xFF333333)), borderRadius: BorderRadius.all(Radius.circular(12)))),
+              cardTheme: const CardTheme(color: Color(0xFF1E1E1E), shape: RoundedRectangleBorder(side: BorderSide(color: Color(0xFF333333)), borderRadius: BorderRadius.all(Radius.circular(12)))),
             ),
             locale: const Locale('ar'),
             supportedLocales: const [Locale('ar'), Locale('en')],

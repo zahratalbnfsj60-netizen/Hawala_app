@@ -17,7 +17,7 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
-  String _filter = 'all';
+  String _dateFilter = 'all';
   String _search = '';
   DateTime? _pausedTime;
 
@@ -55,10 +55,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     final p = context.watch<AppProvider>();
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    
     final filtered = p.transfers.where((t) {
-      if (_filter == 'paid' && t.type != TransferType.paid) return false;
-      if (_filter == 'received' && t.type != TransferType.received) return false;
       if (_search.isNotEmpty && !t.recipientName.contains(_search)) return false;
+      
+      if (_dateFilter == 'today' && t.date.isBefore(today)) return false;
+      if (_dateFilter == 'week' && t.date.isBefore(today.subtract(const Duration(days: 7)))) return false;
+      if (_dateFilter == 'month' && (t.date.year != now.year || t.date.month != now.month)) return false;
+      if (_dateFilter == 'year' && t.date.year != now.year) return false;
+      
       return true;
     }).toList();
 
@@ -73,46 +80,43 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         ],
       ),
       body: Column(children: [
-        _header(p), _filters(),
-        _tableHeader(),
-        Expanded(child: filtered.isEmpty ? const Center(child: Text('لا توجد حوالات', style: TextStyle(color: Colors.grey))) : ListView.builder(padding: const EdgeInsets.only(bottom: 16), itemCount: filtered.length, itemBuilder: (c, i) => _row(filtered[i], p))),
+        _accountHeader(p), 
+        _dateFilters(),
+        Expanded(child: filtered.isEmpty ? const Center(child: Text('لا توجد حوالات في هذه الفترة', style: TextStyle(color: Colors.grey))) : ListView.builder(padding: const EdgeInsets.only(bottom: 16), itemCount: filtered.length, itemBuilder: (c, i) => _row(filtered[i], p))),
       ]),
-      bottomNavigationBar: _bottomBar(p),
+      bottomNavigationBar: _bottomStatsAndActions(p),
     );
   }
 
-  Widget _header(AppProvider p) => Container(
+  Widget _accountHeader(AppProvider p) => Container(
     margin: const EdgeInsets.fromLTRB(12, 8, 12, 4), padding: const EdgeInsets.all(12), 
-    decoration: BoxDecoration(color: const Color(0xFF161616), borderRadius: BorderRadius.circular(14), border: Border.all(color: const Color(0xFF333333))), 
-    child: Column(children: [
-      Row(children: [
-        const Icon(Icons.account_balance_wallet, color: Colors.white70), const SizedBox(width: 8), 
-        Expanded(child: Text(p.selectedAccount?.name ?? 'اختر حساباً', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold))),
-        IconButton(icon: Icon(p.privacyMode ? Icons.visibility_off : Icons.visibility, color: Colors.grey), onPressed: () => p.togglePrivacy()),
+    decoration: BoxDecoration(color: const Color(0xFF1E1E1E), borderRadius: BorderRadius.circular(14), border: Border.all(color: const Color(0xFF333333))), 
+    child: Row(children: [
+      const Icon(Icons.account_balance_wallet, color: Colors.white70), const SizedBox(width: 8), 
+      Expanded(child: Text(p.selectedAccount?.name ?? 'اختر حساباً', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold))),
+      IconButton(icon: Icon(p.privacyMode ? Icons.visibility_off : Icons.visibility, color: Colors.grey), onPressed: () => p.togglePrivacy()),
+    ]),
+  );
+
+  Widget _dateFilters() => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), 
+    child: SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(children: [
+        _chip('الكل', 'all'), const SizedBox(width: 6),
+        _chip('اليوم', 'today'), const SizedBox(width: 6),
+        _chip('الأسبوع', 'week'), const SizedBox(width: 6),
+        _chip('الشهر', 'month'), const SizedBox(width: 6),
+        _chip('السنة', 'year'),
       ]),
-      const Divider(color: Color(0xFF333333), height: 20),
-      Row(children: [_stat('الرصيد', p.balance, p.accentColor), _stat('المدفوع', p.totalPaid, const Color(0xFFE53935)), _stat('المستلم', p.totalReceived, Colors.blueAccent), _stat('عدد المدفوع', p.paidCount.toDouble(), Colors.white70, isCount: true)]),
-    ]),
+    ),
   );
 
-  Widget _stat(String label, double value, Color color, {bool isCount = false}) {
-    final p = context.watch<AppProvider>();
-    final display = isCount ? value.toInt().toString() : (p.privacyMode ? '******' : fmtNum(value));
-    return Expanded(child: Column(children: [Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey)), const SizedBox(height: 4), FittedBox(child: Text(display, style: TextStyle(fontWeight: FontWeight.bold, color: color, fontSize: 14)))]));
+  Widget _chip(String label, String v) { 
+    final sel = _dateFilter == v; 
+    final p = context.watch<AppProvider>(); 
+    return ChoiceChip(label: Text(label), selected: sel, onSelected: (_) => setState(() => _dateFilter = v), backgroundColor: const Color(0xFF1E1E1E), selectedColor: p.accentColor, labelStyle: TextStyle(color: sel ? Colors.white : Colors.grey, fontSize: 13)); 
   }
-
-  Widget _filters() => Padding(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), child: Row(children: [_chip('الكل', 'all'), const SizedBox(width: 6), _chip('مستلم', 'received'), const SizedBox(width: 6), _chip('مدفوع', 'paid')]));
-  Widget _chip(String label, String v) { final sel = _filter == v; final p = context.watch<AppProvider>(); return ChoiceChip(label: Text(label), selected: sel, onSelected: (_) => setState(() => _filter = v), backgroundColor: const Color(0xFF161616), selectedColor: p.accentColor, labelStyle: TextStyle(color: sel ? Colors.white : Colors.white)); }
-
-  Widget _tableHeader() => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), color: const Color(0xFF1F1F1F),
-    child: const Row(children: [
-      Expanded(flex: 3, child: Text('الاسم', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
-      Expanded(flex: 2, child: Text('التاريخ', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12), textAlign: TextAlign.center)),
-      Expanded(flex: 2, child: Text('مستلم', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12), textAlign: TextAlign.center)),
-      Expanded(flex: 2, child: Text('مدفوع', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12), textAlign: TextAlign.center)),
-    ]),
-  );
 
   Widget _row(Transfer t, AppProvider p) {
     final paid = t.type == TransferType.paid;
@@ -128,8 +132,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: Color(0xFF333333)))),
         child: Row(children: [
-          Expanded(flex: 3, child: Text(t.recipientName, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold))),
-          Expanded(flex: 2, child: Text(fmtDate(t.date), style: const TextStyle(fontSize: 10, color: Colors.grey), textAlign: TextAlign.center)),
+          Expanded(flex: 3, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(t.recipientName, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+            Text('${fmtDate(t.date)} ${t.date.hour}:${t.date.minute.toString().padLeft(2, '0')}', style: const TextStyle(fontSize: 10, color: Colors.grey)),
+          ])),
           Expanded(flex: 2, child: Text(paid ? '-' : displayAmount, style: TextStyle(fontSize: 12, color: paid ? Colors.transparent : color), textAlign: TextAlign.center)),
           Expanded(flex: 2, child: Text(paid ? displayAmount : '-', style: TextStyle(fontSize: 12, color: paid ? color : Colors.transparent), textAlign: TextAlign.center)),
         ]),
@@ -137,14 +143,24 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     ));
   }
 
-  Widget _bottomBar(AppProvider p) => Container(
-    padding: const EdgeInsets.all(12), decoration: const BoxDecoration(color: Color(0xFF161616), border: Border(top: BorderSide(color: Color(0xFF333333)))),
-    child: SafeArea(child: Row(children: [
-      Expanded(child: SizedBox(height: 50, child: FilledButton(style: FilledButton.styleFrom(backgroundColor: const Color(0xFFE53935)), onPressed: () => _add(TransferType.paid), child: const Text('مدفوع +', style: TextStyle(fontWeight: FontWeight.bold))))),
-      const SizedBox(width: 10),
-      Expanded(child: SizedBox(height: 50, child: FilledButton(style: FilledButton.styleFrom(backgroundColor: const Color(0xFF00C853)), onPressed: () => _add(TransferType.received), child: const Text('مستلم +', style: TextStyle(fontWeight: FontWeight.bold))))),
+  Widget _bottomStatsAndActions(AppProvider p) => Container(
+    padding: const EdgeInsets.all(12), decoration: const BoxDecoration(color: Color(0xFF1E1E1E), border: Border(top: BorderSide(color: Color(0xFF333333)))),
+    child: SafeArea(child: Column(mainAxisSize: MainAxisSize.min, children: [
+      Row(children: [_stat('الرصيد', p.balance, p.accentColor), _stat('المدفوع', p.totalPaid, const Color(0xFFE53935)), _stat('المستلم', p.totalReceived, Colors.blueAccent), _stat('عدد المدفوع', p.paidCount.toDouble(), Colors.white70, isCount: true)]),
+      const SizedBox(height: 12),
+      Row(children: [
+        Expanded(child: SizedBox(height: 45, child: FilledButton(style: FilledButton.styleFrom(backgroundColor: const Color(0xFFE53935)), onPressed: () => _add(TransferType.paid), child: const Text('مدفوع +', style: TextStyle(fontWeight: FontWeight.bold))))),
+        const SizedBox(width: 10),
+        Expanded(child: SizedBox(height: 45, child: FilledButton(style: FilledButton.styleFrom(backgroundColor: const Color(0xFF00C853)), onPressed: () => _add(TransferType.received), child: const Text('مستلم +', style: TextStyle(fontWeight: FontWeight.bold))))),
+      ]),
     ])),
   );
+
+  Widget _stat(String label, double value, Color color, {bool isCount = false}) {
+    final p = context.watch<AppProvider>();
+    final display = isCount ? value.toInt().toString() : (p.privacyMode ? '***' : fmtNum(value));
+    return Expanded(child: Column(children: [Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey)), const SizedBox(height: 2), FittedBox(child: Text(display, style: TextStyle(fontWeight: FontWeight.bold, color: color, fontSize: 13)))]));
+  }
 
   void _confirmDelete(BuildContext context, AppProvider p, int id) {
     showDialog(context: context, builder: (c) => AlertDialog(title: const Text('حذف الحوالة'), content: const Text('هل أنت متأكد؟'), actions: [TextButton(onPressed: () => Navigator.pop(c), child: const Text('إلغاء')), FilledButton(style: FilledButton.styleFrom(backgroundColor: Colors.red), onPressed: () async { await p.deleteTransfer(id); if (c.mounted) Navigator.pop(c); }, child: const Text('حذف'))]));
@@ -152,7 +168,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   
   void _add(TransferType t) {
     final p = context.read<AppProvider>();
-    if (p.selectedAccountId == null) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('أضف حساباً أولاً'))); return; }
+    if (p.selectedAccountId == null) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('أضف حساباً أولاً من الأيقونة العلوية'))); return; }
     Navigator.push(context, MaterialPageRoute(builder: (_) => AddTransferScreen(initialType: t))).then((_) => p.loadTransfers());
   }
 }
