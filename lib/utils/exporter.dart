@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:csv/csv.dart';
 import 'package:flutter/material.dart';
@@ -6,6 +7,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:file_picker/file_picker.dart';
 import '../models/transfer.dart';
 import 'formatters.dart';
 
@@ -19,38 +21,37 @@ class Exporter {
     final dir = await getTemporaryDirectory();
     final path = '${dir.path}/transfers_$accountName.csv';
     final file = File(path);
-    await file.writeAsString('\uFEFF$csvData'); // BOM for Arabic Excel support
+    await file.writeAsString('\uFEFF$csvData');
     await Share.shareXFiles([XFile(path)], text: 'كشف حساب $accountName');
   }
 
   static Future<void> exportPDF(List<Transfer> transfers, String accountName, double balance) async {
     final doc = pw.Document();
-    doc.addPage(
-      pw.MultiPage(
-        pageFormat: PdfPageFormat.a4,
-        build: (pw.Context context) => [
-          pw.Header(level: 0, child: pw.Text('سجل الحوالات - $accountName', style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold))),
-          pw.SizedBox(height: 10),
-          pw.Text('الرصيد الحالي: ${fmtNum(balance)}', style: pw.TextStyle(fontSize: 16)),
-          pw.SizedBox(height: 20),
-          pw.TableHelper.fromTextArray(
-            headers: ['التاريخ', 'النوع', 'الاسم', 'المبلغ', 'العمولة'],
-            data: transfers.map((t) => [fmtDate(t.date), t.type == TransferType.paid ? 'مدفوع' : 'مستلم', t.recipientName, fmtNum(t.amount), fmtNum(t.commission)]).toList(),
-            headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white),
-            headerDecoration: const pw.BoxDecoration(color: PdfColors.grey700),
-            cellAlignment: pw.Alignment.center,
-          ),
-        ],
-      ),
-    );
+    doc.addPage(pw.MultiPage(pageFormat: PdfPageFormat.a4, build: (pw.Context context) => [
+      pw.Header(level: 0, child: pw.Text('سجل الحوالات - $accountName', style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold))),
+      pw.SizedBox(height: 10),
+      pw.Text('الرصيد الحالي: ${fmtNum(balance)}'),
+      pw.SizedBox(height: 20),
+      pw.TableHelper.fromTextArray(headers: ['التاريخ', 'النوع', 'الاسم', 'المبلغ', 'العمولة'], data: transfers.map((t) => [fmtDate(t.date), t.type == TransferType.paid ? 'مدفوع' : 'مستلم', t.recipientName, fmtNum(t.amount), fmtNum(t.commission)]).toList(), headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white), headerDecoration: const pw.BoxDecoration(color: PdfColors.grey700), cellAlignment: pw.Alignment.center),
+    ]));
     await Printing.layoutPdf(onLayout: (PdfPageFormat format) async => doc.save());
   }
 
-  static Future<void> backupJSON(String jsonData) async {
+  static Future<void> backupJSON(List<dynamic> accounts, List<dynamic> transfers) async {
+    final data = jsonEncode({'accounts': accounts.map((e) => e.toMap()).toList(), 'transfers': transfers.map((e) => e.toMap()).toList()});
     final dir = await getTemporaryDirectory();
     final path = '${dir.path}/backup_transfers.json';
     final file = File(path);
-    await file.writeAsString(jsonData);
-    await Share.shareXFiles([XFile(path)], text: 'نسخة احتياطية للتطبيق');
+    await file.writeAsString(data);
+    await Share.shareXFiles([XFile(path)], text: 'نسخة احتياطية');
+  }
+
+  static Future<String?> pickAndReadBackup() async {
+    FilePickerResult? result = await FilePicker.platform.pickFiles(type: FileType.any);
+    if (result != null && result.files.single.path != null) {
+      final file = File(result.files.single.path!);
+      return await file.readAsString();
+    }
+    return null;
   }
 }

@@ -5,16 +5,53 @@ import '../models/transfer.dart';
 import '../providers/app_provider.dart';
 import '../utils/formatters.dart';
 import 'add_transfer_screen.dart';
+import 'accounts_screen.dart';
+import 'settings_screen.dart';
+import 'stats_screen.dart';
+import 'lock_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
-class _HomeScreenState extends State<HomeScreen> {
+
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   String _filter = 'all';
   String _search = '';
-  
+  DateTime? _pausedTime;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused) {
+      _pausedTime = DateTime.now();
+    } else if (state == AppLifecycleState.resumed) {
+      if (_pausedTime != null && DateTime.now().difference(_pausedTime!).inMinutes >= 1) {
+        final p = context.read<AppProvider>();
+        if (p.autoLock && p.needsUnlock) {
+          p.setUnlocked(false);
+          Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LockScreen()));
+        }
+      }
+    }
+  }
+
+  void _openSearch() {
+    showSearch(context: context, delegate: _TransferSearchDelegate(context.watch<AppProvider>(), _search, (val) => setState(() => _search = val)));
+  }
+
   @override
   Widget build(BuildContext context) {
     final p = context.watch<AppProvider>();
@@ -26,99 +63,108 @@ class _HomeScreenState extends State<HomeScreen> {
     }).toList();
 
     return Scaffold(
-      appBar: AppBar(title: const Text('سجل الحوالات'), centerTitle: true),
+      appBar: AppBar(
+        title: const Text('سجل الحوالات'), centerTitle: true,
+        actions: [
+          IconButton(icon: const Icon(Icons.search), onPressed: _openSearch),
+          IconButton(icon: const Icon(Icons.pie_chart), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StatsScreen()))),
+          IconButton(icon: const Icon(Icons.people), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AccountsScreen())).then((_) => p.loadAccounts())),
+          IconButton(icon: const Icon(Icons.settings), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()))),
+        ],
+      ),
       body: Column(children: [
-        _header(p), _filters(), _searchBar(),
-        Expanded(child: filtered.isEmpty ? const Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.receipt_long, size: 80, color: Colors.grey), SizedBox(height: 12), Text('لا توجد حوالات بعد', style: TextStyle(color: Colors.grey, fontSize: 16))])) : ListView.builder(padding: const EdgeInsets.fromLTRB(12, 8, 12, 80), itemCount: filtered.length, itemBuilder: (c, i) => _card(filtered[i], p))),
+        _header(p), _filters(),
+        _tableHeader(),
+        Expanded(child: filtered.isEmpty ? const Center(child: Text('لا توجد حوالات', style: TextStyle(color: Colors.grey))) : ListView.builder(padding: const EdgeInsets.only(bottom: 16), itemCount: filtered.length, itemBuilder: (c, i) => _row(filtered[i], p))),
       ]),
-      floatingActionButton: FloatingActionButton(onPressed: () => _showAddOptions(context), backgroundColor: p.accentColor, child: const Icon(Icons.add, color: Colors.white, size: 28)),
+      bottomNavigationBar: _bottomBar(p),
     );
-  }
-
-  void _showAddOptions(BuildContext context) {
-    showModalBottomSheet(context: context, backgroundColor: const Color(0xFF161616), shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))), builder: (c) => SafeArea(child: Padding(padding: const EdgeInsets.all(16), child: Column(mainAxisSize: MainAxisSize.min, children: [
-      ListTile(leading: CircleAvatar(backgroundColor: const Color(0xFF00C853), child: const Icon(Icons.arrow_downward, color: Colors.white)), title: const Text('حوالة مستلمة', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)), onTap: () { Navigator.pop(c); _add(TransferType.received); }),
-      ListTile(leading: CircleAvatar(backgroundColor: const Color(0xFFE53935), child: const Icon(Icons.arrow_upward, color: Colors.white)), title: const Text('حوالة مدفوعة', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)), onTap: () { Navigator.pop(c); _add(TransferType.paid); }),
-    ]))));
   }
 
   Widget _header(AppProvider p) => Container(
     margin: const EdgeInsets.fromLTRB(12, 8, 12, 4), padding: const EdgeInsets.all(12), 
     decoration: BoxDecoration(color: const Color(0xFF161616), borderRadius: BorderRadius.circular(14), border: Border.all(color: const Color(0xFF333333))), 
     child: Column(children: [
-      InkWell(
-        onTap: () => _showAccountSearch(context, p),
-        child: Row(children: [
-          const Icon(Icons.account_balance_wallet, color: Colors.white70), const SizedBox(width: 8), 
-          Expanded(child: Text(p.selectedAccount?.name ?? 'اختر حساباً', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold))),
-          const Icon(Icons.arrow_drop_down),
-        ]),
-      ),
+      Row(children: [
+        const Icon(Icons.account_balance_wallet, color: Colors.white70), const SizedBox(width: 8), 
+        Expanded(child: Text(p.selectedAccount?.name ?? 'اختر حساباً', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold))),
+        IconButton(icon: Icon(p.privacyMode ? Icons.visibility_off : Icons.visibility, color: Colors.grey), onPressed: () => p.togglePrivacy()),
+      ]),
       const Divider(color: Color(0xFF333333), height: 20),
-      Row(children: [_stat('الرصيد', p.balance, p.accentColor), _stat('المدفوع', p.totalPaid, const Color(0xFFE53935)), _stat('المستلم', p.totalReceived, Colors.blueAccent), _stat('العدد', p.count.toDouble(), Colors.white70, isCount: true)]),
+      Row(children: [_stat('الرصيد', p.balance, p.accentColor), _stat('المدفوع', p.totalPaid, const Color(0xFFE53935)), _stat('المستلم', p.totalReceived, Colors.blueAccent), _stat('عدد المدفوع', p.paidCount.toDouble(), Colors.white70, isCount: true)]),
     ]),
   );
 
-  void _showAccountSearch(BuildContext context, AppProvider p) {
-    showModalBottomSheet(
-      context: context, isScrollControlled: true, backgroundColor: const Color(0xFF161616),
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (c) => StatefulBuilder(builder: (c, setSt) {
-        String q = '';
-        return Padding(
-          padding: EdgeInsets.only(bottom: MediaQuery.of(c).viewInsets.bottom),
-          child: SizedBox(height: 400, child: Column(children: [
-            Padding(padding: const EdgeInsets.all(16), child: TextField(
-              autofocus: true, decoration: const InputDecoration(hintText: 'ابحث عن حساب...', prefixIcon: Icon(Icons.search)), 
-              onChanged: (v) => setSt(() => q = v),
-            )),
-            Expanded(child: ListView.builder(
-              itemCount: p.accounts.where((a) => a.name.contains(q)).length,
-              itemBuilder: (c, i) {
-                final filtered = p.accounts.where((a) => a.name.contains(q)).toList();
-                final a = filtered[i];
-                return ListTile(
-                  title: Text(a.name), leading: const Icon(Icons.account_balance),
-                  trailing: a.id == p.selectedAccountId ? Icon(Icons.check, color: p.accentColor) : null,
-                  onTap: () { p.selectAccount(a.id!); Navigator.pop(c); },
-                );
-              }
-            ))
-          ])),
-        );
-      }),
-    );
+  Widget _stat(String label, double value, Color color, {bool isCount = false}) {
+    final p = context.watch<AppProvider>();
+    final display = isCount ? value.toInt().toString() : (p.privacyMode ? '******' : fmtNum(value));
+    return Expanded(child: Column(children: [Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey)), const SizedBox(height: 4), FittedBox(child: Text(display, style: TextStyle(fontWeight: FontWeight.bold, color: color, fontSize: 14)))]));
   }
 
-  Widget _stat(String label, double value, Color color, {bool isCount = false}) => Expanded(child: Column(children: [Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey)), const SizedBox(height: 4), FittedBox(child: Text(isCount ? value.toInt().toString() : fmtNum(value), style: TextStyle(fontWeight: FontWeight.bold, color: color, fontSize: 14)))]));
-  
   Widget _filters() => Padding(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), child: Row(children: [_chip('الكل', 'all'), const SizedBox(width: 6), _chip('مستلم', 'received'), const SizedBox(width: 6), _chip('مدفوع', 'paid')]));
-  
   Widget _chip(String label, String v) { final sel = _filter == v; final p = context.watch<AppProvider>(); return ChoiceChip(label: Text(label), selected: sel, onSelected: (_) => setState(() => _filter = v), backgroundColor: const Color(0xFF161616), selectedColor: p.accentColor, labelStyle: TextStyle(color: sel ? Colors.white : Colors.white)); }
-  
-  Widget _searchBar() => Padding(padding: const EdgeInsets.fromLTRB(12, 0, 12, 6), child: TextField(onChanged: (v) => setState(() => _search = v), decoration: InputDecoration(hintText: 'بحث عن اسم...', prefixIcon: const Icon(Icons.search), filled: true, fillColor: const Color(0xFF161616), border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF333333))), contentPadding: const EdgeInsets.symmetric(vertical: 0))));
 
-  Widget _card(Transfer t, AppProvider p) {
-    final paid = t.type == TransferType.paid; final color = paid ? const Color(0xFFE53935) : const Color(0xFF00C853);
+  Widget _tableHeader() => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), color: const Color(0xFF1F1F1F),
+    child: const Row(children: [
+      Expanded(flex: 3, child: Text('الاسم', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12))),
+      Expanded(flex: 2, child: Text('التاريخ', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12), textAlign: TextAlign.center)),
+      Expanded(flex: 2, child: Text('مستلم', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12), textAlign: TextAlign.center)),
+      Expanded(flex: 2, child: Text('مدفوع', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12), textAlign: TextAlign.center)),
+    ]),
+  );
+
+  Widget _row(Transfer t, AppProvider p) {
+    final paid = t.type == TransferType.paid;
+    final color = paid ? const Color(0xFFE53935) : const Color(0xFF00C853);
+    final displayAmount = p.privacyMode ? '***' : fmtNum(t.amount);
+
     return Slidable(key: ValueKey(t.id), endActionPane: ActionPane(motion: const DrawerMotion(), children: [
-      SlidableAction(onPressed: (context) => _confirmDelete(context, p, t.id!), backgroundColor: const Color(0xFFE53935), foregroundColor: Colors.white, icon: Icons.delete, label: 'حذف', borderRadius: BorderRadius.circular(12)),
-      SlidableAction(onPressed: (context) => Navigator.push(context, MaterialPageRoute(builder: (_) => AddTransferScreen(existing: t))).then((_) => p.loadTransfers()), backgroundColor: Colors.blueAccent, foregroundColor: Colors.white, icon: Icons.edit, label: 'تعديل', borderRadius: BorderRadius.circular(12)),
-    ]), child: Container(margin: const EdgeInsets.only(bottom: 8), decoration: BoxDecoration(color: const Color(0xFF161616), borderRadius: BorderRadius.circular(12), border: Border(right: BorderSide(color: color, width: 4), top: const BorderSide(color: Color(0xFF333333)), bottom: const BorderSide(color: Color(0xFF333333)), left: const BorderSide(color: Color(0xFF333333)))), child: ListTile(
+      SlidableAction(onPressed: (c) => _confirmDelete(c, p, t.id!), backgroundColor: const Color(0xFFE53935), foregroundColor: Colors.white, icon: Icons.delete, label: 'حذف'),
+      SlidableAction(onPressed: (c) => Navigator.push(context, MaterialPageRoute(builder: (_) => AddTransferScreen(existing: t))).then((_) => p.loadTransfers()), backgroundColor: Colors.blueAccent, foregroundColor: Colors.white, icon: Icons.edit, label: 'تعديل'),
+    ]), child: InkWell(
       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => AddTransferScreen(existing: t))).then((_) => p.loadTransfers()),
-      leading: CircleAvatar(backgroundColor: color.withAlpha(40), child: Icon(paid ? Icons.arrow_upward : Icons.arrow_downward, color: color, size: 20)),
-      title: Text(t.recipientName, style: const TextStyle(fontWeight: FontWeight.bold)),
-      subtitle: Text('${fmtDate(t.date)}${t.paidNumber != null ? " • #${t.paidNumber}" : ""}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
-      trailing: Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.end, children: [Text('${paid ? "-" : "+"}${fmtNum(t.amount)}', style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 15)), if (t.commission > 0) Text('عمولة: ${fmtNum(t.commission)}', style: const TextStyle(fontSize: 11, color: Colors.grey))]),
-    )));
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: Color(0xFF333333)))),
+        child: Row(children: [
+          Expanded(flex: 3, child: Text(t.recipientName, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold))),
+          Expanded(flex: 2, child: Text(fmtDate(t.date), style: const TextStyle(fontSize: 10, color: Colors.grey), textAlign: TextAlign.center)),
+          Expanded(flex: 2, child: Text(paid ? '-' : displayAmount, style: TextStyle(fontSize: 12, color: paid ? Colors.transparent : color), textAlign: TextAlign.center)),
+          Expanded(flex: 2, child: Text(paid ? displayAmount : '-', style: TextStyle(fontSize: 12, color: paid ? color : Colors.transparent), textAlign: TextAlign.center)),
+        ]),
+      ),
+    ));
   }
-  
+
+  Widget _bottomBar(AppProvider p) => Container(
+    padding: const EdgeInsets.all(12), decoration: const BoxDecoration(color: Color(0xFF161616), border: Border(top: BorderSide(color: Color(0xFF333333)))),
+    child: SafeArea(child: Row(children: [
+      Expanded(child: SizedBox(height: 50, child: FilledButton(style: FilledButton.styleFrom(backgroundColor: const Color(0xFFE53935)), onPressed: () => _add(TransferType.paid), child: const Text('مدفوع +', style: TextStyle(fontWeight: FontWeight.bold))))),
+      const SizedBox(width: 10),
+      Expanded(child: SizedBox(height: 50, child: FilledButton(style: FilledButton.styleFrom(backgroundColor: const Color(0xFF00C853)), onPressed: () => _add(TransferType.received), child: const Text('مستلم +', style: TextStyle(fontWeight: FontWeight.bold))))),
+    ])),
+  );
+
   void _confirmDelete(BuildContext context, AppProvider p, int id) {
-    showDialog(context: context, builder: (c) => AlertDialog(title: const Text('حذف الحوالة'), content: const Text('هل أنت متأكد من حذف هذه الحوالة؟'), actions: [TextButton(onPressed: () => Navigator.pop(c), child: const Text('إلغاء')), FilledButton(style: FilledButton.styleFrom(backgroundColor: Colors.red), onPressed: () async { await p.deleteTransfer(id); if (c.mounted) Navigator.pop(c); }, child: const Text('حذف'))]));
+    showDialog(context: context, builder: (c) => AlertDialog(title: const Text('حذف الحوالة'), content: const Text('هل أنت متأكد؟'), actions: [TextButton(onPressed: () => Navigator.pop(c), child: const Text('إلغاء')), FilledButton(style: FilledButton.styleFrom(backgroundColor: Colors.red), onPressed: () async { await p.deleteTransfer(id); if (c.mounted) Navigator.pop(c); }, child: const Text('حذف'))]));
   }
   
   void _add(TransferType t) {
     final p = context.read<AppProvider>();
-    if (p.selectedAccountId == null) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('أضف حساباً أولاً من شاشة الحسابات'))); return; }
+    if (p.selectedAccountId == null) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('أضف حساباً أولاً'))); return; }
     Navigator.push(context, MaterialPageRoute(builder: (_) => AddTransferScreen(initialType: t))).then((_) => p.loadTransfers());
+  }
+}
+
+class _TransferSearchDelegate extends SearchDelegate {
+  final AppProvider p; final Function(String) onSearch; final String initial;
+  _TransferSearchDelegate(this.p, this.initial, this.onSearch);
+  @override Widget buildLeading(BuildContext context) => IconButton(icon: const Icon(Icons.arrow_back), onPressed: () { onSearch(''); close(context, null); });
+  @override List<Widget>? buildActions(BuildContext context) => [IconButton(icon: const Icon(Icons.clear), onPressed: () { query = ''; })];
+  @override Widget buildResults(BuildContext context) { onSearch(query); Navigator.pop(context); return const SizedBox(); }
+  @override Widget buildSuggestions(BuildContext context) {
+    final suggestions = p.transfers.where((t) => t.recipientName.contains(query)).map((t) => ListTile(title: Text(t.recipientName), subtitle: Text(fmtDate(t.date)), onTap: () { onSearch(query); Navigator.pop(context); })).toList();
+    return ListView(children: suggestions);
   }
 }

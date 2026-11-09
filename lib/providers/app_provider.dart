@@ -16,6 +16,7 @@ class AppProvider extends ChangeNotifier {
   int? selectedAccountId;
   bool loading = true;
   bool unlocked = false;
+  bool privacyMode = false;
   
   // Settings
   String currency = 'ل.س';
@@ -38,13 +39,16 @@ class AppProvider extends ChangeNotifier {
   // Security
   bool get hasPin => prefs.getString('pin') != null;
   bool get bioEnabled => prefs.getBool('bio') ?? false;
+  bool get autoLock => prefs.getBool('autoLock') ?? true;
   bool get needsUnlock => hasPin || bioEnabled;
   void setPin(String pin) { prefs.setString('pin', pin); notifyListeners(); }
   void removePin() { prefs.remove('pin'); notifyListeners(); }
   void setBio(bool v) { prefs.setBool('bio', v); notifyListeners(); }
+  void setAutoLock(bool v) { prefs.setBool('autoLock', v); notifyListeners(); }
   bool verifyPin(String pin) => prefs.getString('pin') == pin;
   Future<bool> tryBiometric() async { try { return await _auth.authenticate(localizedReason: 'أدخل بصمتك', options: const AuthenticationOptions(biometricOnly: true, stickyAuth: true)); } catch (_) { return false; } }
   void setUnlocked(bool v) { unlocked = v; notifyListeners(); }
+  void togglePrivacy() { privacyMode = !privacyMode; notifyListeners(); }
 
   // Settings
   void setCurrency(String c) { currency = c; prefs.setString('currency', c); notifyListeners(); }
@@ -80,6 +84,12 @@ class AppProvider extends ChangeNotifier {
   double get totalPaid => transfers.where((t) => t.type == TransferType.paid).fold(0, (s, t) => s + t.amount);
   double get totalCommission => transfers.where((t) => t.type == TransferType.paid).fold(0, (s, t) => s + t.commission);
   double get balance => (selectedAccount?.openingBalance ?? 0) + totalReceived - totalPaid - totalCommission;
-  int get count => transfers.length;
+  int get paidCount => transfers.where((t) => t.type == TransferType.paid).length;
+
+  // Backup & Restore
+  Future<void> restoreBackup(String jsonStr) async {
+    await _db.restoreBackup(jsonStr);
+    await loadAccounts();
+  }
   Future<void> clearAllData() async { await _db.clearAll(); accounts = []; transfers = []; selectedAccountId = null; notifyListeners(); }
 }

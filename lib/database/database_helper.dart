@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../models/account.dart';
@@ -27,4 +28,16 @@ class DatabaseHelper {
   Future<void> deleteTransfer(int id) async => (await database).delete('transfers', where: 'id = ?', whereArgs: [id]);
   Future<void> clearAll() async { final db = await database; await db.delete('transfers'); await db.delete('accounts'); await db.delete('saved_names'); }
   Future<List<String>> getSavedNames({String query = ''}) async { final rows = await (await database).query('saved_names', where: 'name LIKE ?', whereArgs: ['%$query%'], orderBy: 'lastUsed DESC', limit: 8); return rows.map((r) => r['name'] as String).toList(); }
+
+  Future<void> restoreBackup(String jsonStr) async {
+    final data = jsonDecode(jsonStr);
+    final db = await database;
+    await clearAll();
+    for (var a in data['accounts']) {
+      await db.insert('accounts', a);
+    }
+    for (var t in data['transfers']) {
+      await db.insert('transfers', t);
+    }
+  }
 }

@@ -15,6 +15,7 @@ class AddTransferScreen extends StatefulWidget {
 class _AddTransferScreenState extends State<AddTransferScreen> {
   final _nameCtrl = TextEditingController(); final _amountCtrl = TextEditingController(); final _commCtrl = TextEditingController();
   late TransferType _type; DateTime _date = DateTime.now(); List<String> _suggestions = []; int? _paidNumber;
+  final FocusNode _nameFocus = FocusNode(); final FocusNode _amountFocus = FocusNode();
   
   @override
   void initState() {
@@ -35,10 +36,10 @@ class _AddTransferScreenState extends State<AddTransferScreen> {
         Row(children: [Expanded(child: _typeBtn('مستلم', TransferType.received, const Color(0xFF00C853))), const SizedBox(width: 10), Expanded(child: _typeBtn('مدفوع', TransferType.paid, const Color(0xFFE53935)))]),
         if (paid && _paidNumber != null) Padding(padding: const EdgeInsets.only(top: 8), child: Text('رقم الدفعة: #$_paidNumber', style: const TextStyle(color: Colors.grey))),
         const SizedBox(height: 16),
-        TextField(controller: _nameCtrl, decoration: const InputDecoration(labelText: 'اسم المستلم', filled: true, fillColor: Color(0xFF161616), border: OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF333333))), enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF333333)))), onChanged: (v) async { final list = await p.savedNames(v); if (mounted) setState(() => _suggestions = list); }),
-        if (_suggestions.isNotEmpty) Wrap(spacing: 6, children: _suggestions.take(5).map((s) => ActionChip(label: Text(s), onPressed: () => setState(() { _nameCtrl.text = s; _suggestions = []; }))).toList()),
+        TextField(focusNode: _nameFocus, controller: _nameCtrl, decoration: const InputDecoration(labelText: 'اسم المستلم', filled: true, fillColor: Color(0xFF161616), border: OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF333333))), enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF333333)))), onChanged: (v) async { final list = await p.savedNames(v); if (mounted) setState(() => _suggestions = list); }, onSubmitted: (_) => _amountFocus.requestFocus()),
+        if (_suggestions.isNotEmpty) Wrap(spacing: 6, children: _suggestions.take(5).map((s) => ActionChip(label: Text(s), onPressed: () { setState(() { _nameCtrl.text = s; _suggestions = []; }); _amountFocus.requestFocus(); })).toList()),
         const SizedBox(height: 12),
-        TextField(controller: _amountCtrl, keyboardType: TextInputType.number, inputFormatters: [FilteringTextInputFormatter.digitsOnly], decoration: const InputDecoration(labelText: 'المبلغ', filled: true, fillColor: Color(0xFF161616), border: OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF333333))), enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF333333))))),
+        TextField(focusNode: _amountFocus, controller: _amountCtrl, keyboardType: TextInputType.number, inputFormatters: [FilteringTextInputFormatter.digitsOnly], decoration: const InputDecoration(labelText: 'المبلغ', filled: true, fillColor: Color(0xFF161616), border: OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF333333))), enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF333333))))),
         if (paid) ...[
           const SizedBox(height: 12),
           TextField(controller: _commCtrl, keyboardType: TextInputType.number, inputFormatters: [FilteringTextInputFormatter.digitsOnly], decoration: const InputDecoration(labelText: 'العمولة', filled: true, fillColor: Color(0xFF161616), border: OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF333333))), enabledBorder: OutlineInputBorder(borderSide: BorderSide(color: Color(0xFF333333))))),
@@ -48,13 +49,19 @@ class _AddTransferScreenState extends State<AddTransferScreen> {
         const SizedBox(height: 12),
         ListTile(tileColor: const Color(0xFF161616), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8), side: const BorderSide(color: Color(0xFF333333))), leading: const Icon(Icons.calendar_today), title: Text(fmtDate(_date)), trailing: const Icon(Icons.edit, size: 18), onTap: () async { final d = await showDatePicker(context: context, initialDate: _date, firstDate: DateTime(2000), lastDate: DateTime(2100)); if (d != null) setState(() => _date = d); }),
       ]),
-      bottomNavigationBar: SafeArea(child: Padding(padding: const EdgeInsets.all(12), child: Row(children: [
-        if (widget.existing != null) Expanded(child: OutlinedButton(onPressed: _confirmDelete, style: OutlinedButton.styleFrom(foregroundColor: Colors.red), child: const Text('حذف'))), 
-        if (widget.existing != null) const SizedBox(width: 8),
-        Expanded(child: OutlinedButton(onPressed: () => Navigator.pop(context), child: const Text('إلغاء'))), 
-        const SizedBox(width: 8), 
-        Expanded(child: FilledButton(onPressed: _save, child: const Text('حفظ'))) 
-      ]))),
+      bottomNavigationBar: Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom), // تحريك الأزرار مع الكيبورد
+        child: Container(
+          padding: const EdgeInsets.all(12), color: const Color(0xFF161616),
+          child: SafeArea(child: Row(children: [
+            if (widget.existing != null) Expanded(child: OutlinedButton(onPressed: _confirmDelete, style: OutlinedButton.styleFrom(foregroundColor: Colors.red), child: const Text('حذف'))), 
+            if (widget.existing != null) const SizedBox(width: 8),
+            Expanded(child: OutlinedButton(onPressed: () => Navigator.pop(context), child: const Text('إغلاق'))), 
+            const SizedBox(width: 8), 
+            Expanded(child: FilledButton(onPressed: _save, child: const Text('حفظ'))) 
+          ])),
+        ),
+      ),
     );
   }
   
@@ -71,9 +78,20 @@ class _AddTransferScreenState extends State<AddTransferScreen> {
     if (name.isEmpty) return _err('أدخل اسم المستلم'); if (amount <= 0) return _err('أدخل مبلغاً صحيحاً');
     HapticFeedback.lightImpact();
     final p = context.read<AppProvider>(); final comm = _type == TransferType.paid ? (double.tryParse(_commCtrl.text) ?? 0) : 0.0;
-    if (widget.existing == null) { final n = _type == TransferType.paid ? await p.nextPaidNumber() : null; await p.addTransfer(Transfer(type: _type, recipientName: name, amount: amount, commission: comm, date: _date, accountId: p.selectedAccountId!, paidNumber: n, createdAt: DateTime.now())); }
-    else { final t = widget.existing!; await p.updateTransfer(Transfer(id: t.id, type: _type, recipientName: name, amount: amount, commission: comm, date: _date, accountId: t.accountId, paidNumber: _type == TransferType.paid ? (t.paidNumber ?? await p.nextPaidNumber()) : null, createdAt: t.createdAt)); }
-    if (mounted) Navigator.pop(context);
+    
+    if (widget.existing == null) { 
+      final n = _type == TransferType.paid ? await p.nextPaidNumber() : null; 
+      await p.addTransfer(Transfer(type: _type, recipientName: name, amount: amount, commission: comm, date: _date, accountId: p.selectedAccountId!, paidNumber: n, createdAt: DateTime.now()));
+      // تفريغ الحقول لإضافة حوالة أخرى
+      _nameCtrl.clear(); _amountCtrl.clear(); _suggestions = [];
+      if (_type == TransferType.paid) { _commCtrl.text = p.comm100.toString(); _loadNumber(); }
+      _nameFocus.requestFocus();
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم الحفظ بنجاح! يمكنك إضافة حوالة أخرى')));
+    } else { 
+      final t = widget.existing!; 
+      await p.updateTransfer(Transfer(id: t.id, type: _type, recipientName: name, amount: amount, commission: comm, date: _date, accountId: t.accountId, paidNumber: _type == TransferType.paid ? (t.paidNumber ?? await p.nextPaidNumber()) : null, createdAt: t.createdAt)); 
+      if (mounted) Navigator.pop(context); 
+    }
   }
   void _err(String m) => ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m)));
 }

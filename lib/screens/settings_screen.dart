@@ -1,10 +1,7 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:file_picker/file_picker.dart';
 import '../providers/app_provider.dart';
 import '../utils/exporter.dart';
-import '../utils/formatters.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -25,20 +22,22 @@ class SettingsScreen extends StatelessWidget {
         _section('التصدير والنسخ الاحتياطي'),
         ListTile(title: const Text('تصدير كشف حساب (PDF)'), leading: const Icon(Icons.picture_as_pdf), onTap: () => Exporter.exportPDF(p.transfers, p.selectedAccount?.name ?? 'الكل', p.balance)),
         ListTile(title: const Text('تصدير الحوالات (Excel/CSV)'), leading: const Icon(Icons.table_chart), onTap: () => Exporter.exportCSV(p.transfers, p.selectedAccount?.name ?? 'الكل')),
-        ListTile(title: const Text('نسخ احتياطي (JSON)'), leading: const Icon(Icons.backup), onTap: () {
-          final data = {'accounts': p.accounts.map((e) => e.toMap()).toList(), 'transfers': p.transfers.map((e) => e.toMap()).toList()};
-          Exporter.backupJSON(jsonEncode(data));
+        ListTile(title: const Text('نسخ احتياطي (JSON)'), leading: const Icon(Icons.backup), onTap: () => Exporter.backupJSON(p.accounts, p.transfers)),
+        ListTile(title: const Text('استعادة نسخة احتياطية'), leading: const Icon(Icons.restore), onTap: () async {
+          final data = await Exporter.pickAndReadBackup();
+          if (data != null) { await p.restoreBackup(data); if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تمت استعادة البيانات بنجاح'))); }
         }),
         
-        _section('الأمان'),
+        _section('الأمان والخصوصية'),
         ListTile(title: const Text('رمز PIN'), trailing: Text(p.hasPin ? 'مفعّل' : 'معطّل'), onTap: () => _pin(context)), 
         SwitchListTile(title: const Text('قفل بالبصمة'), value: p.bioEnabled, onChanged: (v) => p.setBio(v)),
+        SwitchListTile(title: const Text('قفل تلقائي بعد دقيقة'), value: p.autoLock, onChanged: (v) => p.setAutoLock(v)),
         
         _section('البيانات'),
         ListTile(title: const Text('حذف جميع البيانات'), leading: const Icon(Icons.delete_forever, color: Colors.red), onTap: () => _wipe(context)),
         
         _section('حول'),
-        const ListTile(title: Text('الإصدار'), trailing: Text('3.0')),
+        const ListTile(title: Text('الإصدار'), trailing: Text('4.0')),
         const ListTile(title: Text('المبرمج'), trailing: Text('أدهم الهبة')),
       ]),
     );
