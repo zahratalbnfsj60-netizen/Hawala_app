@@ -1,5 +1,6 @@
 package com.transferslog.app.ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -33,7 +34,7 @@ fun HomeScreen(vm: MainViewModel, nav: NavController) {
         (search.isBlank() || t.recipientName.contains(search, true) || t.amount.toString().contains(search))
     }
 
-    // حساب المجاميع للنتائج المعروضة حالياً (تتحدث مع البحث/الفلترة)
+    // حساب المجاميع للنتائج المعروضة حالياً
     val totalReceived = filtered.filter { it.type == TransferType.RECEIVED }.sumOf { it.amount }
     val totalPaid = filtered.filter { it.type == TransferType.PAID }.sumOf { it.amount }
     val totalCommission = filtered.filter { it.type == TransferType.PAID }.sumOf { it.commission }
@@ -63,7 +64,7 @@ fun HomeScreen(vm: MainViewModel, nav: NavController) {
         },
         bottomBar = {
             Column {
-                // 🔹 أزرار الإضافة السريعة (فوق الشريط السفلي)
+                // أزرار الإضافة السريعة (فوق الشريط السفلي)
                 Row(
                     Modifier
                         .fillMaxWidth()
@@ -95,7 +96,7 @@ fun HomeScreen(vm: MainViewModel, nav: NavController) {
                     }
                 }
 
-                // 🔹 شريط الإحصائيات السفلي
+                // شريط الإحصائيات السفلي
                 BottomStatsBar(
                     received = totalReceived,
                     paid = totalPaid,
@@ -138,7 +139,6 @@ fun HomeScreen(vm: MainViewModel, nav: NavController) {
     }
 }
 
-// شريط الإحصائيات السفلي
 @Composable
 fun BottomStatsBar(received: Double, paid: Double, remaining: Double, profit: Double) {
     Surface(
@@ -191,7 +191,6 @@ private fun formatNumber(value: Double): String {
     }
 }
 
-// بطاقة الحوالة (كما هي)
 @Composable
 fun TransferCard(t: Transfer, accountName: String, onClick: () -> Unit) {
     val isPaid = t.type == TransferType.PAID
