@@ -10,8 +10,8 @@ class StatsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = context.watch<AppProvider>();
     final total = p.totalPaid + p.totalReceived;
-    final paidPercent = total == 0 ? 0 : (p.totalPaid / total) * 100;
-    final recPercent = total == 0 ? 0 : (p.totalReceived / total) * 100;
+    final paidPercent = total == 0 ? 0.0 : (p.totalPaid / total) * 100;
+    final recPercent = total == 0 ? 0.0 : (p.totalReceived / total) * 100;
     return Scaffold(
       appBar: AppBar(title: const Text('الإحصائيات'), centerTitle: true),
       body: p.count == 0
