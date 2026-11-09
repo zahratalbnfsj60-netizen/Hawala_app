@@ -1,1 +1,0 @@
--keep class com.transferslog.app.data.** { *; }
