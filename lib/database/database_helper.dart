@@ -3,6 +3,7 @@ import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart';
 import '../models/account.dart';
 import '../models/transfer.dart';
+import '../models/debt.dart';
 
 class DatabaseHelper {
   static final DatabaseHelper instance = DatabaseHelper._();
@@ -11,10 +12,15 @@ class DatabaseHelper {
   Future<Database> get database async => _db ??= await _initDb();
   Future<Database> _initDb() async {
     final path = join(await getDatabasesPath(), 'transfer_log.db');
-    return openDatabase(path, version: 1, onCreate: (db, v) async {
+    return openDatabase(path, version: 2, onCreate: (db, v) async {
       await db.execute('CREATE TABLE accounts(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, openingBalance REAL NOT NULL DEFAULT 0, createdAt TEXT NOT NULL)');
       await db.execute('CREATE TABLE transfers(id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT NOT NULL, recipientName TEXT NOT NULL, amount REAL NOT NULL, commission REAL NOT NULL DEFAULT 0, date TEXT NOT NULL, accountId INTEGER NOT NULL, paidNumber INTEGER, createdAt TEXT NOT NULL)');
       await db.execute('CREATE TABLE saved_names(id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE NOT NULL, lastUsed TEXT NOT NULL)');
+      await db.execute('CREATE TABLE debts(id INTEGER PRIMARY KEY AUTOINCREMENT, personName TEXT NOT NULL, amount REAL NOT NULL, type TEXT NOT NULL, date TEXT NOT NULL, isSettled INTEGER NOT NULL DEFAULT 0)');
+    }, onUpgrade: (db, oldV, newV) async {
+      if (oldV < 2) {
+        await db.execute('CREATE TABLE debts(id INTEGER PRIMARY KEY AUTOINCREMENT, personName TEXT NOT NULL, amount REAL NOT NULL, type TEXT NOT NULL, date TEXT NOT NULL, isSettled INTEGER NOT NULL DEFAULT 0)');
+      }
     });
   }
   Future<int> insertAccount(Account a) async => (await database).insert('accounts', a.toMap()..remove('id'));
@@ -26,18 +32,13 @@ class DatabaseHelper {
   Future<int> insertTransfer(Transfer t) async { final db = await database; final id = await db.insert('transfers', t.toMap()..remove('id')); await db.insert('saved_names', {'name': t.recipientName, 'lastUsed': DateTime.now().toIso8601String()}, conflictAlgorithm: ConflictAlgorithm.replace); return id; }
   Future<void> updateTransfer(Transfer t) async => (await database).update('transfers', t.toMap(), where: 'id = ?', whereArgs: [t.id]);
   Future<void> deleteTransfer(int id) async => (await database).delete('transfers', where: 'id = ?', whereArgs: [id]);
-  Future<void> clearAll() async { final db = await database; await db.delete('transfers'); await db.delete('accounts'); await db.delete('saved_names'); }
-  Future<List<String>> getSavedNames({String query = ''}) async { final rows = await (await database).query('saved_names', where: 'name LIKE ?', whereArgs: ['%$query%'], orderBy: 'lastUsed DESC', limit: 8); return rows.map((r) => r['name'] as String).toList(); }
+  Future<void> clearAll() async { final db = await database; await db.delete('transfers'); await db.delete('accounts'); await db.delete('saved_names'); await db.delete('debts'); }
+  Future<List<String>> getSavedNames({String query = ''}) async { final rows = await (await database).query('saved_names', where: 'name LIKE ?', whereArgs: ['%$query%'], orderBy: 'lastUsed DESC'); return rows.map((r) => r['name'] as String).toList(); }
+  Future<void> restoreBackup(String jsonStr) async { final data = jsonDecode(jsonStr); final db = await database; await clearAll(); for (var a in data['accounts']) { await db.insert('accounts', a); } for (var t in data['transfers']) { await db.insert('transfers', t); } }
 
-  Future<void> restoreBackup(String jsonStr) async {
-    final data = jsonDecode(jsonStr);
-    final db = await database;
-    await clearAll();
-    for (var a in data['accounts']) {
-      await db.insert('accounts', a);
-    }
-    for (var t in data['transfers']) {
-      await db.insert('transfers', t);
-    }
-  }
+  // Debts
+  Future<List<Debt>> getDebts() async { final rows = await (await database).query('debts', orderBy: 'date DESC'); return rows.map(Debt.fromMap).toList(); }
+  Future<int> insertDebt(Debt d) async => (await database).insert('debts', d.toMap()..remove('id'));
+  Future<void> updateDebt(Debt d) async => (await database).update('debts', d.toMap(), where: 'id = ?', whereArgs: [d.id]);
+  Future<void> deleteDebt(int id) async => (await database).delete('debts', where: 'id = ?', whereArgs: [id]);
 }

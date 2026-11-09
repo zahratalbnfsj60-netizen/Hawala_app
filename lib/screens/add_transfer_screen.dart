@@ -14,28 +14,26 @@ class AddTransferScreen extends StatefulWidget {
 
 class _AddTransferScreenState extends State<AddTransferScreen> {
   final _nameCtrl = TextEditingController(); final _amountCtrl = TextEditingController(); final _commCtrl = TextEditingController();
-  late TransferType _type; DateTime _date = DateTime.now(); List<String> _suggestions = []; int? _paidNumber;
-  final FocusNode _nameFocus = FocusNode(); final FocusNode _amountFocus = FocusNode();
+  late TransferType _type; DateTime _date = DateTime.now(); List<String> _savedNames = []; int? _paidNumber;
+  final FocusNode _amountFocus = FocusNode();
   
   @override
   void initState() {
     super.initState();
+    _fetchNames();
     if (widget.existing != null) { final t = widget.existing!; _type = t.type; _nameCtrl.text = t.recipientName; _amountCtrl.text = t.amount.toString(); _commCtrl.text = t.commission.toString(); _date = t.date; _paidNumber = t.paidNumber; }
     else { _type = widget.initialType ?? TransferType.paid; _loadNumber(); }
   }
-  
+
+  Future<void> _fetchNames() async { final p = context.read<AppProvider>(); final names = await p.savedNames(); if (mounted) setState(() => _savedNames = names); }
   Future<void> _loadNumber() async { final p = context.read<AppProvider>(); final n = await p.nextPaidNumber(); if (mounted) setState(() => _paidNumber = n); }
 
   void _onAmountChanged(String val) {
     if (_type != TransferType.paid) return;
     final amount = double.tryParse(val) ?? 0;
-    if (amount >= 2000 && amount < 100000) {
-      _commCtrl.text = '100';
-    } else if (amount >= 100000) {
-      _commCtrl.text = '250';
-    } else {
-      _commCtrl.text = '0';
-    }
+    if (amount >= 2000 && amount < 100000) { _commCtrl.text = '100'; } 
+    else if (amount >= 100000) { _commCtrl.text = '250'; } 
+    else { _commCtrl.text = '0'; }
   }
   
   @override
@@ -48,11 +46,9 @@ class _AddTransferScreenState extends State<AddTransferScreen> {
         child: Column(children: [
           Row(children: [Expanded(child: _typeBtn('مستلم', TransferType.received, const Color(0xFF00C853))), const SizedBox(width: 10), Expanded(child: _typeBtn('مدفوع', TransferType.paid, const Color(0xFFE53935)))]),
           const SizedBox(height: 16),
-          
-          // التاريخ والوقت
           Card(child: ListTile(
             leading: const Icon(Icons.calendar_today, size: 20),
-            title: Text('${fmtDate(_date)} - ${_date.hour}:${_date.minute.toString().padLeft(2, '0')}', style: const TextStyle(fontSize: 14)),
+            title: Text('${fmtDate(_date)} - ${_date.hour.toString().padLeft(2, '0')}:${_date.minute.toString().padLeft(2, '0')}', style: const TextStyle(fontSize: 14)),
             trailing: const Icon(Icons.edit, size: 16),
             onTap: () async {
               final d = await showDatePicker(context: context, initialDate: _date, firstDate: DateTime(2000), lastDate: DateTime(2100));
@@ -63,16 +59,18 @@ class _AddTransferScreenState extends State<AddTransferScreen> {
             },
           )),
           const SizedBox(height: 12),
-
-          // اسم المستلم
-          Card(child: TextField(focusNode: _nameFocus, controller: _nameCtrl, decoration: const InputDecoration(labelText: 'اسم المستلم', border: InputBorder.none, contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14)), onChanged: (v) async { final list = await p.savedNames(v); if (mounted) setState(() => _suggestions = list); }, onSubmitted: (_) => _amountFocus.requestFocus())),
-          if (_suggestions.isNotEmpty) Wrap(spacing: 6, children: _suggestions.take(3).map((s) => ActionChip(label: Text(s), onPressed: () { setState(() { _nameCtrl.text = s; _suggestions = []; }); _amountFocus.requestFocus(); })).toList()),
+          Autocomplete<String>(
+            optionsBuilder: (TextEditingValue textEditingValue) {
+              if (textEditingValue.text.isEmpty) return _savedNames;
+              return _savedNames.where((String option) => option.contains(textEditingValue.text));
+            },
+            onSelected: (String selection) { _nameCtrl.text = selection; _amountFocus.requestFocus(); },
+            fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
+              return Card(child: TextField(focusNode: focusNode, controller: controller, decoration: const InputDecoration(labelText: 'اسم المستلم', border: InputBorder.none, contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14)), onChanged: (v) => _nameCtrl.text = v, onSubmitted: (_) => onFieldSubmitted()));
+            },
+          ),
           const SizedBox(height: 12),
-
-          // المبلغ
-          Card(child: TextField(focusNode: _amountFocus, controller: _amountCtrl, keyboardType: TextInputType.number, inputFormatters: [FilteringTextInputFormatter.digitsOnly], decoration: const InputDecoration(labelText: 'المبلغ', border: InputBorder.none, contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14)), onChanged: _onAmountChanged)),
-          
-          // العمولة
+          Card(child: TextField(focusNode: _amountFocus, controller: _amountCtrl, keyboardType: TextInputType.number, inputFormatters: [FilteringTextInputFormatter.digitsOnly], decoration: const InputDecoration(labelText: 'المبلغ (ل.س)', border: InputBorder.none, contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14)), onChanged: _onAmountChanged)),
           if (paid) ...[
             const SizedBox(height: 12),
             Card(child: TextField(controller: _commCtrl, enabled: false, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'العمولة (تلقائي)', border: InputBorder.none, contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 14)))),
@@ -111,10 +109,11 @@ class _AddTransferScreenState extends State<AddTransferScreen> {
     if (widget.existing == null) { 
       final n = _type == TransferType.paid ? await p.nextPaidNumber() : null; 
       await p.addTransfer(Transfer(type: _type, recipientName: name, amount: amount, commission: comm, date: _date, accountId: p.selectedAccountId!, paidNumber: n, createdAt: DateTime.now()));
-      _nameCtrl.clear(); _amountCtrl.clear(); _suggestions = [];
+      _nameCtrl.clear(); _amountCtrl.clear();
       if (_type == TransferType.paid) { _loadNumber(); _commCtrl.clear(); }
-      _nameFocus.requestFocus();
+      _amountFocus.requestFocus();
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم الحفظ بنجاح!')));
+      _fetchNames();
     } else { 
       final t = widget.existing!; 
       await p.updateTransfer(Transfer(id: t.id, type: _type, recipientName: name, amount: amount, commission: comm, date: _date, accountId: t.accountId, paidNumber: _type == TransferType.paid ? (t.paidNumber ?? await p.nextPaidNumber()) : null, createdAt: t.createdAt)); 

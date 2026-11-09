@@ -8,6 +8,7 @@ import 'add_transfer_screen.dart';
 import 'accounts_screen.dart';
 import 'settings_screen.dart';
 import 'stats_screen.dart';
+import 'debts_screen.dart';
 import 'lock_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -22,35 +23,23 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   DateTime? _pausedTime;
 
   @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this);
-  }
+  void initState() { super.initState(); WidgetsBinding.instance.addObserver(this); }
 
   @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    super.dispose();
-  }
+  void dispose() { WidgetsBinding.instance.removeObserver(this); super.dispose(); }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused) {
-      _pausedTime = DateTime.now();
-    } else if (state == AppLifecycleState.resumed) {
+    if (state == AppLifecycleState.paused) { _pausedTime = DateTime.now(); } 
+    else if (state == AppLifecycleState.resumed) {
       if (_pausedTime != null && DateTime.now().difference(_pausedTime!).inMinutes >= 1) {
         final p = context.read<AppProvider>();
-        if (p.autoLock && p.needsUnlock) {
-          p.setUnlocked(false);
-          Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LockScreen()));
-        }
+        if (p.autoLock && p.needsUnlock) { p.setUnlocked(false); Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LockScreen())); }
       }
     }
   }
 
-  void _openSearch() {
-    showSearch(context: context, delegate: _TransferSearchDelegate(context.watch<AppProvider>(), _search, (val) => setState(() => _search = val)));
-  }
+  void _openSearch() { showSearch(context: context, delegate: _TransferSearchDelegate(context.watch<AppProvider>(), _search, (val) => setState(() => _search = val))); }
 
   @override
   Widget build(BuildContext context) {
@@ -60,12 +49,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     
     final filtered = p.transfers.where((t) {
       if (_search.isNotEmpty && !t.recipientName.contains(_search)) return false;
-      
       if (_dateFilter == 'today' && t.date.isBefore(today)) return false;
       if (_dateFilter == 'week' && t.date.isBefore(today.subtract(const Duration(days: 7)))) return false;
       if (_dateFilter == 'month' && (t.date.year != now.year || t.date.month != now.month)) return false;
       if (_dateFilter == 'year' && t.date.year != now.year) return false;
-      
       return true;
     }).toList();
 
@@ -74,14 +61,20 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         title: const Text('سجل الحوالات'), centerTitle: true,
         actions: [
           IconButton(icon: const Icon(Icons.search), onPressed: _openSearch),
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              IconButton(icon: const Icon(Icons.handshake), tooltip: 'الديون', onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DebtsScreen()))),
+              if (p.unsettledDebtsCount > 0) Positioned(top: 8, right: 8, child: Container(padding: const EdgeInsets.all(4), decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle), child: Text('${p.unsettledDebtsCount}', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold)))),
+            ],
+          ),
           IconButton(icon: const Icon(Icons.pie_chart), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StatsScreen()))),
           IconButton(icon: const Icon(Icons.people), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AccountsScreen())).then((_) => p.loadAccounts())),
           IconButton(icon: const Icon(Icons.settings), onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()))),
         ],
       ),
       body: Column(children: [
-        _accountHeader(p), 
-        _dateFilters(),
+        _accountHeader(p), _dateFilters(), _tableHeader(),
         Expanded(child: filtered.isEmpty ? const Center(child: Text('لا توجد حوالات في هذه الفترة', style: TextStyle(color: Colors.grey))) : ListView.builder(padding: const EdgeInsets.only(bottom: 16), itemCount: filtered.length, itemBuilder: (c, i) => _row(filtered[i], p))),
       ]),
       bottomNavigationBar: _bottomStatsAndActions(p),
@@ -94,6 +87,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     child: Row(children: [
       const Icon(Icons.account_balance_wallet, color: Colors.white70), const SizedBox(width: 8), 
       Expanded(child: Text(p.selectedAccount?.name ?? 'اختر حساباً', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold))),
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(color: const Color(0xFF333333), borderRadius: BorderRadius.circular(12)),
+        child: Text('${p.paidCount} مدفوع', style: const TextStyle(fontSize: 12, color: Colors.white70)),
+      ),
+      const SizedBox(width: 8),
       IconButton(icon: Icon(p.privacyMode ? Icons.visibility_off : Icons.visibility, color: Colors.grey), onPressed: () => p.togglePrivacy()),
     ]),
   );
@@ -103,50 +102,75 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     child: SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Row(children: [
-        _chip('الكل', 'all'), const SizedBox(width: 6),
-        _chip('اليوم', 'today'), const SizedBox(width: 6),
-        _chip('الأسبوع', 'week'), const SizedBox(width: 6),
-        _chip('الشهر', 'month'), const SizedBox(width: 6),
+        _chip('الكل', 'all'), const SizedBox(width: 6), _chip('اليوم', 'today'), const SizedBox(width: 6),
+        _chip('الأسبوع', 'week'), const SizedBox(width: 6), _chip('الشهر', 'month'), const SizedBox(width: 6),
         _chip('السنة', 'year'),
       ]),
     ),
   );
 
   Widget _chip(String label, String v) { 
-    final sel = _dateFilter == v; 
-    final p = context.watch<AppProvider>(); 
+    final sel = _dateFilter == v; final p = context.watch<AppProvider>(); 
     return ChoiceChip(label: Text(label), selected: sel, onSelected: (_) => setState(() => _dateFilter = v), backgroundColor: const Color(0xFF1E1E1E), selectedColor: p.accentColor, labelStyle: TextStyle(color: sel ? Colors.white : Colors.grey, fontSize: 13)); 
   }
+
+  Widget _tableHeader() => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), color: const Color(0xFF161616),
+    child: const Row(children: [
+      Expanded(flex: 3, child: Text('الاسم والتاريخ', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Colors.grey))),
+      Expanded(flex: 2, child: Text('مستلم', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Colors.grey), textAlign: TextAlign.center)),
+      Expanded(flex: 2, child: Text('مدفوع', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: Colors.grey), textAlign: TextAlign.center)),
+    ]),
+  );
 
   Widget _row(Transfer t, AppProvider p) {
     final paid = t.type == TransferType.paid;
     final color = paid ? const Color(0xFFE53935) : const Color(0xFF00C853);
-    final displayAmount = p.privacyMode ? '***' : fmtNum(t.amount);
+    final displayAmount = p.privacyMode ? '***' : '${fmtNum(t.amount)} ل.س';
 
     return Slidable(key: ValueKey(t.id), endActionPane: ActionPane(motion: const DrawerMotion(), children: [
       SlidableAction(onPressed: (c) => _confirmDelete(c, p, t.id!), backgroundColor: const Color(0xFFE53935), foregroundColor: Colors.white, icon: Icons.delete, label: 'حذف'),
       SlidableAction(onPressed: (c) => Navigator.push(context, MaterialPageRoute(builder: (_) => AddTransferScreen(existing: t))).then((_) => p.loadTransfers()), backgroundColor: Colors.blueAccent, foregroundColor: Colors.white, icon: Icons.edit, label: 'تعديل'),
     ]), child: InkWell(
-      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => AddTransferScreen(existing: t))).then((_) => p.loadTransfers()),
+      onTap: () => _showDetails(t, p),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: Color(0xFF333333)))),
         child: Row(children: [
           Expanded(flex: 3, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(t.recipientName, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-            Text('${fmtDate(t.date)} ${t.date.hour}:${t.date.minute.toString().padLeft(2, '0')}', style: const TextStyle(fontSize: 10, color: Colors.grey)),
+            Text('${fmtDate(t.date)} ${t.date.hour.toString().padLeft(2, '0')}:${t.date.minute.toString().padLeft(2, '0')}', style: const TextStyle(fontSize: 10, color: Colors.grey)),
           ])),
-          Expanded(flex: 2, child: Text(paid ? '-' : displayAmount, style: TextStyle(fontSize: 12, color: paid ? Colors.transparent : color), textAlign: TextAlign.center)),
-          Expanded(flex: 2, child: Text(paid ? displayAmount : '-', style: TextStyle(fontSize: 12, color: paid ? color : Colors.transparent), textAlign: TextAlign.center)),
+          Expanded(flex: 2, child: Text(paid ? '-' : displayAmount, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: paid ? Colors.transparent : color), textAlign: TextAlign.center)),
+          Expanded(flex: 2, child: Text(paid ? displayAmount : '-', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: paid ? color : Colors.transparent), textAlign: TextAlign.center)),
         ]),
       ),
+    ));
+  }
+
+  void _showDetails(Transfer t, AppProvider p) {
+    showDialog(context: context, builder: (c) => AlertDialog(
+      title: Text(t.recipientName),
+      content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('التاريخ: ${fmtDate(t.date)} ${t.date.hour}:${t.date.minute.toString().padLeft(2, '0')}'),
+        Text('المبلغ: ${fmtNum(t.amount)} ل.س'),
+        Text('العمولة: ${fmtNum(t.commission)} ل.س'),
+        Text('النوع: ${t.type == TransferType.paid ? 'مدفوع' : 'مستلم'}'),
+        if (t.paidNumber != null) Text('رقم الدفعة: #${t.paidNumber}'),
+      ]),
+      actions: [TextButton(onPressed: () => Navigator.pop(c), child: const Text('إغلاق'))],
     ));
   }
 
   Widget _bottomStatsAndActions(AppProvider p) => Container(
     padding: const EdgeInsets.all(12), decoration: const BoxDecoration(color: Color(0xFF1E1E1E), border: Border(top: BorderSide(color: Color(0xFF333333)))),
     child: SafeArea(child: Column(mainAxisSize: MainAxisSize.min, children: [
-      Row(children: [_stat('الرصيد', p.balance, p.accentColor), _stat('المدفوع', p.totalPaid, const Color(0xFFE53935)), _stat('المستلم', p.totalReceived, Colors.blueAccent), _stat('عدد المدفوع', p.paidCount.toDouble(), Colors.white70, isCount: true)]),
+      Row(children: [
+        _stat('الرصيد', p.balance, p.accentColor), 
+        _stat('المدفوع', p.totalPaid, const Color(0xFFE53935)), 
+        _stat('المستلم', p.totalReceived, Colors.blueAccent), 
+        _stat('العمولات', p.totalCommission, Colors.orangeAccent),
+      ]),
       const SizedBox(height: 12),
       Row(children: [
         Expanded(child: SizedBox(height: 45, child: FilledButton(style: FilledButton.styleFrom(backgroundColor: const Color(0xFFE53935)), onPressed: () => _add(TransferType.paid), child: const Text('مدفوع +', style: TextStyle(fontWeight: FontWeight.bold))))),
@@ -156,10 +180,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     ])),
   );
 
-  Widget _stat(String label, double value, Color color, {bool isCount = false}) {
+  Widget _stat(String label, double value, Color color) {
     final p = context.watch<AppProvider>();
-    final display = isCount ? value.toInt().toString() : (p.privacyMode ? '***' : fmtNum(value));
-    return Expanded(child: Column(children: [Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey)), const SizedBox(height: 2), FittedBox(child: Text(display, style: TextStyle(fontWeight: FontWeight.bold, color: color, fontSize: 13)))]));
+    final display = p.privacyMode ? '***' : fmtNum(value);
+    return Expanded(child: Column(children: [Text(label, style: const TextStyle(fontSize: 10, color: Colors.grey)), const SizedBox(height: 2), FittedBox(child: Text(display, style: TextStyle(fontWeight: FontWeight.bold, color: color, fontSize: 12)))]));
   }
 
   void _confirmDelete(BuildContext context, AppProvider p, int id) {
