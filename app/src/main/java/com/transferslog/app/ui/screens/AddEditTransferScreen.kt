@@ -5,13 +5,10 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.transferslog.app.data.TransferType
 import com.transferslog.app.ui.theme.*
@@ -27,6 +24,9 @@ fun AddEditTransferScreen(vm: AddEditViewModel, id: Long?, onBack: () -> Unit) {
     val savedNames by vm.savedNames.collectAsState()
     val snackbar = remember { SnackbarHostState() }
     var showDatePicker by remember { mutableStateOf(false) }
+    var showExitConfirm by remember { mutableStateOf(false) }
+    var expandedNames by remember { mutableStateOf(false) }
+    var expandedAcc by remember { mutableStateOf(false) }
 
     LaunchedEffect(id) { id?.let { vm.loadTransfer(it) } }
     LaunchedEffect(state.savedMessage) {
@@ -42,7 +42,12 @@ fun AddEditTransferScreen(vm: AddEditViewModel, id: Long?, onBack: () -> Unit) {
             TopAppBar(
                 title = { Text(if (state.id == null) "إضافة حوالة" else "تعديل حوالة") },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.Default.ArrowBack, null) } },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Black, titleContentColor = White, navigationIconContentColor = White)
+                actions = {
+                    IconButton(onClick = { if (state.hasChanges) showExitConfirm = true else onBack() }) {
+                        Icon(Icons.Default.Close, null)
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Black, titleContentColor = White, navigationIconContentColor = White, actionIconContentColor = White)
             )
         },
         bottomBar = {
@@ -58,8 +63,35 @@ fun AddEditTransferScreen(vm: AddEditViewModel, id: Long?, onBack: () -> Unit) {
                 FilterChip(selected = state.type == TransferType.PAID, onClick = { vm.updateType(TransferType.PAID) }, label = { Text("مدفوع") }, colors = FilterChipDefaults.filterChipColors(selectedContainerColor = RedAccent, selectedLabelColor = White))
             }
 
-            OutlinedTextField(value = state.recipientName, onValueChange = vm::updateRecipient, label = { Text("اسم المستلم") }, modifier = Modifier.fillMaxWidth(), colors = OutlinedTextFieldDefaults.colors(focusedTextColor = White, unfocusedTextColor = White))
+            // حقل الاسم مع الاقتراحات
+            Box {
+                OutlinedTextField(
+                    value = state.recipientName, 
+                    onValueChange = { vm.updateRecipient(it); expandedNames = it.isNotEmpty() }, 
+                    label = { Text("اسم المستلم") }, modifier = Modifier.fillMaxWidth(), 
+                    colors = OutlinedTextFieldDefaults.colors(focusedTextColor = White, unfocusedTextColor = White),
+                    trailingIcon = { IconButton(onClick = { expandedNames = !expandedNames }) { Icon(Icons.Default.ArrowDropDown, null) } }
+                )
+                DropdownMenu(expanded = expandedNames, onDismissRequest = { expandedNames = false }) {
+                    savedNames.filter { it.name.contains(state.recipientName, ignoreCase = true) }.forEach { s ->
+                        DropdownMenuItem(text = { Text(s.name) }, onClick = { vm.updateRecipient(s.name); expandedNames = false })
+                    }
+                }
+            }
+
             OutlinedTextField(value = state.amount, onValueChange = vm::updateAmount, label = { Text("المبلغ") }, modifier = Modifier.fillMaxWidth(), colors = OutlinedTextFieldDefaults.colors(focusedTextColor = White, unfocusedTextColor = White))
+
+            // قائمة الحسابات
+            Box {
+                OutlinedButton(onClick = { expandedAcc = true }, modifier = Modifier.fillMaxWidth()) {
+                    Text(accounts.find { it.id == state.accountId }?.name ?: "اختر الحساب", color = White)
+                }
+                DropdownMenu(expanded = expandedAcc, onDismissRequest = { expandedAcc = false }) {
+                    accounts.forEach { a ->
+                        DropdownMenuItem(text = { Text(a.name) }, onClick = { vm.updateAccount(a.id); expandedAcc = false })
+                    }
+                }
+            }
 
             if (state.type == TransferType.PAID) {
                 OutlinedTextField(value = state.commission, onValueChange = vm::updateCommission, label = { Text("العمولة") }, modifier = Modifier.fillMaxWidth(), colors = OutlinedTextFieldDefaults.colors(focusedTextColor = White, unfocusedTextColor = White))
@@ -79,6 +111,16 @@ fun AddEditTransferScreen(vm: AddEditViewModel, id: Long?, onBack: () -> Unit) {
                     dismissButton = { TextButton(onClick = { showDatePicker = false }) { Text("إلغاء") } }
                 ) { DatePicker(state = dateState) }
             }
+        }
+
+        if (showExitConfirm) {
+            AlertDialog(
+                onDismissRequest = { showExitConfirm = false },
+                title = { Text("تنبيه") },
+                text = { Text("يوجد بيانات لم يتم حفظها. هل تريد الخروج؟") },
+                confirmButton = { TextButton(onClick = { showExitConfirm = false; onBack() }) { Text("خروج", color = RedAccent) } },
+                dismissButton = { TextButton(onClick = { showExitConfirm = false }) { Text("بقاء") } }
+            )
         }
     }
 }
