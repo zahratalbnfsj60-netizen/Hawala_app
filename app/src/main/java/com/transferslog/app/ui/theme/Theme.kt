@@ -7,8 +7,11 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
+import com.transferslog.app.R
 
 val Black = Color(0xFF000000)
 val DarkGray = Color(0xFF161616)
@@ -23,7 +26,16 @@ private val DarkColorScheme = darkColorScheme(
     onPrimary = Black, onSecondary = White, onBackground = White, onSurface = White
 )
 
-val AppTypography = Typography(bodyLarge = TextStyle(fontFamily = FontFamily.Default, fontSize = 16.sp))
+val CairoFontFamily = FontFamily(
+    Font(R.font.cairo_regular, FontWeight.Normal),
+    Font(R.font.cairo_bold, FontWeight.Bold)
+)
+
+val AppTypography = Typography(
+    bodyLarge = TextStyle(fontFamily = CairoFontFamily, fontSize = 16.sp),
+    titleLarge = TextStyle(fontFamily = CairoFontFamily, fontWeight = FontWeight.Bold, fontSize = 22.sp),
+    titleMedium = TextStyle(fontFamily = CairoFontFamily, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+)
 
 @Composable
 fun TransfersLogTheme(darkTheme: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {

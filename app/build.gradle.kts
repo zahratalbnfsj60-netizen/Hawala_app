@@ -45,4 +45,5 @@ dependencies {
     ksp(libs.room.compiler)
     implementation(libs.gson)
     implementation(libs.datastore.preferences)
+    implementation("androidx.biometric:biometric:1.1.0")
 }
